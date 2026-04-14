@@ -22,6 +22,13 @@ make build                                      # Build the binary
 go run main.go                                  # Run directly
 ```
 
+### Testing
+```bash
+make test                                       # Run all tests
+```
+
+Integration tests use `testcontainers-go` to spin up a real Postgres instance automatically. Docker must be running locally to execute them.
+
 ### Code Quality
 ```bash
 make pretty                                     # Format code with gofmt
@@ -77,9 +84,20 @@ Remove timeouts which were used to mitigate the racing issue but are obsolete no
 
 ## Architecture
 
+### Tech Stack
+
+- **Language**: Go (module: `github.com/nicholemattera/serenity`)
+- **HTTP Router**: `chi` (`github.com/go-chi/chi/v5`)
+- **Database**: PostgreSQL via `pgx` (`github.com/jackc/pgx/v5`)
+- **Migrations**: `goose` (`github.com/pressly/goose/v3`) — SQL files embedded in the binary, run automatically on startup
+- **Auth**: `golang-jwt/jwt/v5` for JWT, `golang.org/x/crypto` for bcrypt
+- **Config**: `viper` (`github.com/spf13/viper`) — environment variable based, required vars validated at startup
+- **Logging**: `slog` (stdlib) with JSON handler — use `slog.Error/Info` with key-value attributes, not `log.Printf`
+- **Testing**: `testcontainers-go` for integration tests against real Postgres
+
 ### Design Philosophy
 
-Rego follows these core design principles:
+Serenity follows these core design principles:
 
 1. **Security by Default**: Ensure only users who have the correct permissions are able to access routes and methods
 2. **Consistency Over Cleverness**: All services follow similar patterns even when the underlying APIs differ significantly
@@ -90,21 +108,27 @@ Rego follows these core design principles:
 ### Project Structure
 ```
 Serenity/
-├── main.go                          # Entry point (example usage)
+├── main.go                          # Entry point — connects DB, runs migrations, starts server
 ├── go.mod                           # Go module definition
 ├── Makefile                         # Build and development commands
-├── cmd/                             # Main applications for this project
-├── internal/                        # Private application code
-├── api/                             # OpenAPI/Swagger specs, JSON schema files, protocol definition files.
-├── configs/                         # Configuration file templates or default configs.
-└── .github/                         # GitHub Actions workflows
+├── configs/
+│   └── .env.example                 # Environment variable template
+├── internal/
+│   ├── config/                      # Viper-based env config, validated at startup
+│   ├── database/
+│   │   ├── database.go              # pgx connection pool + Migrate()
+│   │   └── migrations/              # goose SQL migration files (embedded in binary)
+│   ├── models/                      # Go structs for all domain types + shared Audit struct
+│   └── repository/                  # Database access layer — one file per model
+├── api/                             # OpenAPI/Swagger specs (future)
+└── .github/                         # GitHub Actions workflows (future)
 ```
 
 ### Data Structure
 
 #### Content
 
-- **Composite**: This is the starting point and defines a piece of data
+- **Composite**: This is the starting point and defines a piece of data. Composites have `default_read` and `default_write` boolean flags that control unauthenticated access — for example a form submission composite may have `default_write = true` so users don't need to be logged in to submit. Role-based permissions take precedence for authenticated users.
 - **Field**: This is additional data related to the composite. Fields can be required, have a specific position in the composite, can have a default value, and other metadata. The field should also have a type, such as:
   - **Association**: This type is for having a field that is associated to another entity. Which composite this associate is for should be stored in the metadata for this field.
   - **Checkbox**: This type is for simple boolean data.
@@ -120,7 +144,7 @@ Serenity/
   - **ShortText**: This type is for storing plain text.
   - **Time**: This type is for storing time in ... format.
   - **URL**: This type is similar to the `ShortText` type, but has specific validation of URLs.
-- **Entity**: This is a piece of data and is associated to a specific composite. Entities should have human-readable slugs that can be used to query the data. Entities can also belong to other entities and have specific ordering using Nested Set Model.
+- **Entity**: This is a piece of data associated to a specific composite. Entities have human-readable slugs. Entities support cross-composite parent-child relationships (e.g. a Comment entity belonging to a Post entity) using the Nested Set Model scoped by `tree_id` rather than `composite_id`. Each root entity anchors its own tree (`tree_id = id`); child entities inherit the root's `tree_id`. Root entities within a composite are ordered by `root_position`. The `lft`/`rgt` columns use the reserved-word-safe names in SQL.
 - **Field Value**: This is the value for a field associated to an entity and a field that the entity's composite has.
 
 #### Users
