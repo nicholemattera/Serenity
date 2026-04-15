@@ -14,6 +14,16 @@ Serenity is an open-source API-driven content management system. Named as the ob
 - Endpoints delivering data will paginate results up to a limit
 - Comprehensive error handling
 
+## Setup
+
+After cloning the repository, install the git hooks:
+
+```bash
+pre-commit install
+```
+
+This requires [`pre-commit`](https://pre-commit.com/) to be installed (`brew install pre-commit` on macOS).
+
 ## Common Development Commands
 
 ### Build & Run
