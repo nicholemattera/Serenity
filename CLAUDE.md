@@ -22,7 +22,9 @@ After cloning the repository, install the git hooks:
 pre-commit install
 ```
 
-This requires [`pre-commit`](https://pre-commit.com/) to be installed (`brew install pre-commit` on macOS).
+This requires the following tools to be installed:
+- [`pre-commit`](https://pre-commit.com/) — `brew install pre-commit` on MacOS
+- [`golangci-lint`](https://golangci-lint.run/) — `brew install golangci-lint` on MacOS
 
 ## Common Development Commands
 

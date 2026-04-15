@@ -6,3 +6,9 @@ repos:
         language: system
         entry: gofmt -w
         types: [go]
+      - id: golangci-lint
+        name: golangci-lint
+        language: system
+        entry: golangci-lint run --allow-newer-go
+        types: [go]
+        pass_filenames: false
