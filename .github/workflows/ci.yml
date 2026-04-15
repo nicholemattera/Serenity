@@ -44,10 +44,12 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+          args: --allow-newer-go
 
       - name: Test
         env:
           DATABASE_URL: postgres://serenity:serenity@localhost:5432/serenity
+          JWT_SECRET: test
         run: make test
 
       - name: Build
