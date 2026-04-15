@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -47,7 +46,7 @@ func main() {
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "ok")
+		w.Write([]byte("ok")) //nolint:errcheck
 	})
 
 	srv := &http.Server{

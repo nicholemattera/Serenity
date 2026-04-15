@@ -50,7 +50,7 @@ func (r *entityRepository) Create(ctx context.Context, entity *models.Entity, pa
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(ctx) //nolint:errcheck
 
 	var treeID uuid.UUID
 	var insertLft int
@@ -274,7 +274,7 @@ func (r *entityRepository) Move(ctx context.Context, id uuid.UUID, parentID *uui
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(ctx) //nolint:errcheck
 
 	var treeID uuid.UUID
 	var nodeLft, nodeRgt int
@@ -386,7 +386,7 @@ func (r *entityRepository) MoveRoot(ctx context.Context, id uuid.UUID, afterID *
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(ctx) //nolint:errcheck
 
 	var compositeID uuid.UUID
 	var currentPos int
