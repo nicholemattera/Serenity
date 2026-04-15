@@ -119,10 +119,32 @@ Serenity/
 │   │   ├── database.go              # pgx connection pool + Migrate()
 │   │   └── migrations/              # goose SQL migration files (embedded in binary)
 │   ├── models/                      # Go structs for all domain types + shared Audit struct
-│   └── repository/                  # Database access layer — one file per model
+│   ├── repository/                  # Database access layer — one file per model
+│   └── service/                     # Business logic layer — one file per domain
 ├── api/                             # OpenAPI/Swagger specs (future)
 └── .github/                         # GitHub Actions workflows (future)
 ```
+
+### Service Layer
+
+The service layer (`internal/service/`) sits between the repository and HTTP handler layers. Each service wraps one or more repositories and enforces business rules.
+
+**Services:**
+- `auth.go` — `AuthService`: `Login` (bcrypt verify + JWT issue), `ValidateToken` (returns typed `*Claims` with `UserID`/`RoleID`)
+- `composite.go` — `CompositeService`: CRUD for composites; `List`/`GetByID`/`GetBySlug`/`Update` accept `enrich bool` to optionally eager-load fields into `CompositeDetail`; `Create` returns bare `*models.Composite`
+- `field.go` — `FieldService`: CRUD for fields; `ListByComposite` for fetching all fields belonging to a composite
+- `entity.go` — `EntityService`: CRUD + `Move`/`MoveRoot` for NSM tree operations; `List*`/`GetByID`/`GetBySlug`/`Update` accept `enrich bool` to optionally eager-load field values into `EntityDetail`; `Create` returns bare `*models.Entity`
+- `field_value.go` — `FieldValueService`: `Set` (upsert by entity+field pair), `GetByID`, `ListByEntity`, `Delete`
+- `permission.go` — `PermissionService`: `CanRead`/`CanWrite` check role permissions against a composite; nil `roleID` falls back to composite `default_read`/`default_write` flags
+- `user.go` — `UserService`: `Create` (bcrypt hash), `GetByID`, `List`, `UpdatePassword` (re-hash), `Delete`; bcrypt cost is configurable via `BCRYPT_COST` env var (default 12)
+- `errors.go` — shared sentinel errors: `ErrNotFound`, `ErrConflict`, `ErrUnauthorized`, `ErrForbidden`, `ErrInvalidInput`
+
+**Key patterns:**
+- Services accept interfaces (not concrete types), enabling unit testing with hand-rolled mocks
+- `*Detail` structs (`CompositeDetail`, `EntityDetail`) embed the base model and add eagerly-loaded relations
+- The `enrich bool` parameter on read/list/update methods lets callers skip the extra DB query when relations are not needed
+- `Move`/`MoveRoot`/`Delete` call `GetByID` first to surface `ErrNotFound` before attempting mutations
+- Service unit tests live in `internal/service/*_test.go` and use inline mock structs; repository integration tests use `testcontainers-go`
 
 ### Data Structure
 

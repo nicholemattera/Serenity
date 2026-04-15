@@ -10,6 +10,7 @@ type Config struct {
 	Port        string
 	DatabaseURL string
 	JWTSecret   string
+	BCryptCost  int
 }
 
 func Load() (*Config, error) {
@@ -17,6 +18,7 @@ func Load() (*Config, error) {
 	viper.AutomaticEnv()
 
 	viper.SetDefault("PORT", "8080")
+	viper.SetDefault("BCRYPT_COST", 12)
 
 	var missing []string
 	for _, key := range []string{"DATABASE_URL", "JWT_SECRET"} {
@@ -32,5 +34,6 @@ func Load() (*Config, error) {
 		Port:        viper.GetString("PORT"),
 		DatabaseURL: viper.GetString("DATABASE_URL"),
 		JWTSecret:   viper.GetString("JWT_SECRET"),
+		BCryptCost:  viper.GetInt("BCRYPT_COST"),
 	}, nil
 }
