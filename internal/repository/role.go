@@ -34,9 +34,9 @@ func (r *roleRepository) Create(ctx context.Context, role *models.Role) (*models
 	role.UpdatedAt = now
 
 	_, err := r.db.Exec(ctx, `
-		INSERT INTO roles (id, name, hierarchy_level, session_timeout, created_at, updated_at, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, role.ID, role.Name, role.HierarchyLevel, role.SessionTimeout, role.CreatedAt, role.UpdatedAt, role.CreatedBy)
+		INSERT INTO roles (id, name, hierarchy_level, session_timeout, allow_registration, created_at, updated_at, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`, role.ID, role.Name, role.HierarchyLevel, role.SessionTimeout, role.AllowRegistration, role.CreatedAt, role.UpdatedAt, role.CreatedBy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create role: %w", err)
 	}
@@ -47,11 +47,11 @@ func (r *roleRepository) Create(ctx context.Context, role *models.Role) (*models
 func (r *roleRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Role, error) {
 	role := &models.Role{}
 	err := r.db.QueryRow(ctx, `
-		SELECT id, name, hierarchy_level, session_timeout, created_at, updated_at, deleted_at, created_by, updated_by, deleted_by
+		SELECT id, name, hierarchy_level, session_timeout, allow_registration, created_at, updated_at, deleted_at, created_by, updated_by, deleted_by
 		FROM roles
 		WHERE id = $1 AND deleted_at IS NULL
 	`, id).Scan(
-		&role.ID, &role.Name, &role.HierarchyLevel, &role.SessionTimeout,
+		&role.ID, &role.Name, &role.HierarchyLevel, &role.SessionTimeout, &role.AllowRegistration,
 		&role.CreatedAt, &role.UpdatedAt, &role.DeletedAt,
 		&role.CreatedBy, &role.UpdatedBy, &role.DeletedBy,
 	)
@@ -70,7 +70,7 @@ func (r *roleRepository) List(ctx context.Context, p Pagination) (*Page[models.R
 	}
 
 	rows, err := r.db.Query(ctx, `
-		SELECT id, name, hierarchy_level, session_timeout, created_at, updated_at, deleted_at, created_by, updated_by, deleted_by
+		SELECT id, name, hierarchy_level, session_timeout, allow_registration, created_at, updated_at, deleted_at, created_by, updated_by, deleted_by
 		FROM roles
 		WHERE deleted_at IS NULL
 		ORDER BY hierarchy_level ASC
@@ -85,7 +85,7 @@ func (r *roleRepository) List(ctx context.Context, p Pagination) (*Page[models.R
 	for rows.Next() {
 		var role models.Role
 		if err := rows.Scan(
-			&role.ID, &role.Name, &role.HierarchyLevel, &role.SessionTimeout,
+			&role.ID, &role.Name, &role.HierarchyLevel, &role.SessionTimeout, &role.AllowRegistration,
 			&role.CreatedAt, &role.UpdatedAt, &role.DeletedAt,
 			&role.CreatedBy, &role.UpdatedBy, &role.DeletedBy,
 		); err != nil {
@@ -102,9 +102,9 @@ func (r *roleRepository) Update(ctx context.Context, role *models.Role) (*models
 
 	_, err := r.db.Exec(ctx, `
 		UPDATE roles
-		SET name = $1, hierarchy_level = $2, session_timeout = $3, updated_at = $4, updated_by = $5
-		WHERE id = $6 AND deleted_at IS NULL
-	`, role.Name, role.HierarchyLevel, role.SessionTimeout, role.UpdatedAt, role.UpdatedBy, role.ID)
+		SET name = $1, hierarchy_level = $2, session_timeout = $3, allow_registration = $4, updated_at = $5, updated_by = $6
+		WHERE id = $7 AND deleted_at IS NULL
+	`, role.Name, role.HierarchyLevel, role.SessionTimeout, role.AllowRegistration, role.UpdatedAt, role.UpdatedBy, role.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update role: %w", err)
 	}
