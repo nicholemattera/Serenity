@@ -11,6 +11,122 @@ import (
 	"github.com/nicholemattera/serenity/internal/service"
 )
 
+func TestPermissionService_CanReadResource(t *testing.T) {
+	ctx := context.Background()
+	roleID := uuid.New()
+
+	tests := []struct {
+		name       string
+		roleID     *uuid.UUID
+		repoResult *models.Permission
+		repoErr    error
+		expected   bool
+	}{
+		{
+			name:     "unauthenticated is always denied",
+			roleID:   nil,
+			expected: false,
+		},
+		{
+			name:       "role with can_read=true is allowed",
+			roleID:     &roleID,
+			repoResult: &models.Permission{CanRead: true},
+			expected:   true,
+		},
+		{
+			name:       "role with can_read=false is denied",
+			roleID:     &roleID,
+			repoResult: &models.Permission{CanRead: false},
+			expected:   false,
+		},
+		{
+			name:     "no permission record defaults to denied",
+			roleID:   &roleID,
+			repoErr:  pgx.ErrNoRows,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := service.NewPermissionService(&mockPermissionRepo{
+				getByRoleAndComposite: func(_ context.Context, _, _ uuid.UUID) (*models.Permission, error) {
+					return nil, pgx.ErrNoRows
+				},
+				getByRoleAndResource: func(_ context.Context, _ uuid.UUID, _ models.ResourceType) (*models.Permission, error) {
+					return tt.repoResult, tt.repoErr
+				},
+			})
+
+			got, err := svc.CanReadResource(ctx, models.ResourceTypeComposite, tt.roleID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestPermissionService_CanWriteResource(t *testing.T) {
+	ctx := context.Background()
+	roleID := uuid.New()
+
+	tests := []struct {
+		name       string
+		roleID     *uuid.UUID
+		repoResult *models.Permission
+		repoErr    error
+		expected   bool
+	}{
+		{
+			name:     "unauthenticated is always denied",
+			roleID:   nil,
+			expected: false,
+		},
+		{
+			name:       "role with can_write=true is allowed",
+			roleID:     &roleID,
+			repoResult: &models.Permission{CanWrite: true},
+			expected:   true,
+		},
+		{
+			name:       "role with can_write=false is denied",
+			roleID:     &roleID,
+			repoResult: &models.Permission{CanWrite: false},
+			expected:   false,
+		},
+		{
+			name:     "no permission record defaults to denied",
+			roleID:   &roleID,
+			repoErr:  pgx.ErrNoRows,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := service.NewPermissionService(&mockPermissionRepo{
+				getByRoleAndComposite: func(_ context.Context, _, _ uuid.UUID) (*models.Permission, error) {
+					return nil, pgx.ErrNoRows
+				},
+				getByRoleAndResource: func(_ context.Context, _ uuid.UUID, _ models.ResourceType) (*models.Permission, error) {
+					return tt.repoResult, tt.repoErr
+				},
+			})
+
+			got, err := svc.CanWriteResource(ctx, models.ResourceTypeComposite, tt.roleID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
 func TestPermissionService_CanRead(t *testing.T) {
 	ctx := context.Background()
 	roleID := uuid.New()

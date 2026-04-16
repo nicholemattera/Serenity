@@ -15,6 +15,7 @@ type PermissionRepository interface {
 	Create(ctx context.Context, permission *models.Permission) (*models.Permission, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Permission, error)
 	GetByRoleAndComposite(ctx context.Context, roleID, compositeID uuid.UUID) (*models.Permission, error)
+	GetByRoleAndResource(ctx context.Context, roleID uuid.UUID, resourceType models.ResourceType) (*models.Permission, error)
 	ListByRole(ctx context.Context, roleID uuid.UUID, p Pagination) (*Page[models.Permission], error)
 	Update(ctx context.Context, permission *models.Permission) (*models.Permission, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
@@ -28,12 +29,12 @@ func NewPermissionRepository(db *pgxpool.Pool) PermissionRepository {
 	return &permissionRepository{db: db}
 }
 
-const permissionColumns = `id, role_id, composite_id, can_read, can_write,
+const permissionColumns = `id, role_id, composite_id, resource_type, can_read, can_write,
 	created_at, updated_at, deleted_at, created_by, updated_by, deleted_by`
 
 func scanPermission(s interface{ Scan(...any) error }, p *models.Permission) error {
 	return s.Scan(
-		&p.ID, &p.RoleID, &p.CompositeID, &p.CanRead, &p.CanWrite,
+		&p.ID, &p.RoleID, &p.CompositeID, &p.ResourceType, &p.CanRead, &p.CanWrite,
 		&p.CreatedAt, &p.UpdatedAt, &p.DeletedAt,
 		&p.CreatedBy, &p.UpdatedBy, &p.DeletedBy,
 	)
@@ -46,9 +47,9 @@ func (r *permissionRepository) Create(ctx context.Context, permission *models.Pe
 	permission.UpdatedAt = now
 
 	_, err := r.db.Exec(ctx, `
-		INSERT INTO permissions (id, role_id, composite_id, can_read, can_write, created_at, updated_at, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`, permission.ID, permission.RoleID, permission.CompositeID,
+		INSERT INTO permissions (id, role_id, composite_id, resource_type, can_read, can_write, created_at, updated_at, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, permission.ID, permission.RoleID, permission.CompositeID, permission.ResourceType,
 		permission.CanRead, permission.CanWrite,
 		permission.CreatedAt, permission.UpdatedAt, permission.CreatedBy)
 	if err != nil {
@@ -79,6 +80,20 @@ func (r *permissionRepository) GetByRoleAndComposite(ctx context.Context, roleID
 		FROM permissions
 		WHERE role_id = $1 AND composite_id = $2 AND deleted_at IS NULL
 	`, roleID, compositeID), permission)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get permission: %w", err)
+	}
+
+	return permission, nil
+}
+
+func (r *permissionRepository) GetByRoleAndResource(ctx context.Context, roleID uuid.UUID, resourceType models.ResourceType) (*models.Permission, error) {
+	permission := &models.Permission{}
+	err := scanPermission(r.db.QueryRow(ctx, `
+		SELECT `+permissionColumns+`
+		FROM permissions
+		WHERE role_id = $1 AND resource_type = $2 AND deleted_at IS NULL
+	`, roleID, resourceType), permission)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get permission: %w", err)
 	}

@@ -70,6 +70,7 @@ func (m *mockRoleRepo) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.
 
 type mockPermissionRepo struct {
 	getByRoleAndComposite func(ctx context.Context, roleID, compositeID uuid.UUID) (*models.Permission, error)
+	getByRoleAndResource  func(ctx context.Context, roleID uuid.UUID, resourceType models.ResourceType) (*models.Permission, error)
 }
 
 func (m *mockPermissionRepo) Create(ctx context.Context, p *models.Permission) (*models.Permission, error) {
@@ -80,6 +81,12 @@ func (m *mockPermissionRepo) GetByID(ctx context.Context, id uuid.UUID) (*models
 }
 func (m *mockPermissionRepo) GetByRoleAndComposite(ctx context.Context, roleID, compositeID uuid.UUID) (*models.Permission, error) {
 	return m.getByRoleAndComposite(ctx, roleID, compositeID)
+}
+func (m *mockPermissionRepo) GetByRoleAndResource(ctx context.Context, roleID uuid.UUID, resourceType models.ResourceType) (*models.Permission, error) {
+	if m.getByRoleAndResource != nil {
+		return m.getByRoleAndResource(ctx, roleID, resourceType)
+	}
+	return nil, pgx.ErrNoRows
 }
 func (m *mockPermissionRepo) ListByRole(ctx context.Context, roleID uuid.UUID, p repository.Pagination) (*repository.Page[models.Permission], error) {
 	return nil, nil

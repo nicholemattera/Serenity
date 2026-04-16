@@ -21,6 +21,10 @@ type PermissionService interface {
 	CanRead(ctx context.Context, composite *models.Composite, roleID *uuid.UUID) (bool, error)
 	// CanWrite returns true if the given role (nil = unauthenticated) may write entities in the composite.
 	CanWrite(ctx context.Context, composite *models.Composite, roleID *uuid.UUID) (bool, error)
+	// CanReadResource returns true if the given role (nil = unauthenticated) may read the built-in resource type.
+	CanReadResource(ctx context.Context, resourceType models.ResourceType, roleID *uuid.UUID) (bool, error)
+	// CanWriteResource returns true if the given role (nil = unauthenticated) may write the built-in resource type.
+	CanWriteResource(ctx context.Context, resourceType models.ResourceType, roleID *uuid.UUID) (bool, error)
 }
 
 type permissionService struct {
@@ -90,6 +94,38 @@ func (s *permissionService) CanWrite(ctx context.Context, composite *models.Comp
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return composite.DefaultWrite, nil
+		}
+		return false, err
+	}
+	return p.CanWrite, nil
+}
+
+// CanReadResource returns true if the role has been explicitly granted read access to the
+// built-in resource type. Unauthenticated users and roles without an explicit grant are denied.
+func (s *permissionService) CanReadResource(ctx context.Context, resourceType models.ResourceType, roleID *uuid.UUID) (bool, error) {
+	if roleID == nil {
+		return false, nil
+	}
+	p, err := s.repo.GetByRoleAndResource(ctx, *roleID, resourceType)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return p.CanRead, nil
+}
+
+// CanWriteResource returns true if the role has been explicitly granted write access to the
+// built-in resource type. Unauthenticated users and roles without an explicit grant are denied.
+func (s *permissionService) CanWriteResource(ctx context.Context, resourceType models.ResourceType, roleID *uuid.UUID) (bool, error) {
+	if roleID == nil {
+		return false, nil
+	}
+	p, err := s.repo.GetByRoleAndResource(ctx, *roleID, resourceType)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
 		}
 		return false, err
 	}
