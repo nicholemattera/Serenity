@@ -134,7 +134,7 @@ Serenity/
 │   ├── repository/                  # Database access layer — one file per model
 │   └── service/                     # Business logic layer — one file per domain
 ├── api/                             # OpenAPI/Swagger specs (future)
-└── .github/                         # GitHub Actions workflows (future)
+└── .github/                         # GitHub Actions CI workflow + CODEOWNERS
 ```
 
 ### Service Layer
@@ -147,7 +147,7 @@ The service layer (`internal/service/`) sits between the repository and HTTP han
 - `field.go` — `FieldService`: CRUD for fields; `ListByComposite` for fetching all fields belonging to a composite
 - `entity.go` — `EntityService`: CRUD + `Move`/`MoveRoot` for NSM tree operations; `List*`/`GetByID`/`GetBySlug`/`Update` accept `enrich bool` to optionally eager-load field values into `EntityDetail`; `Create` returns bare `*models.Entity`
 - `field_value.go` — `FieldValueService`: `Set` (upsert by entity+field pair), `GetByID`, `ListByEntity`, `Delete`
-- `permission.go` — `PermissionService`: `CanRead`/`CanWrite` check role permissions against a composite; nil `roleID` falls back to composite `default_read`/`default_write` flags
+- `permission.go` — `PermissionService`: `CanRead`/`CanWrite` check role permissions against a composite (nil `roleID` falls back to composite `default_read`/`default_write` flags); `CanReadResource`/`CanWriteResource` check permissions against built-in resource types (`composite`, `field`, `user`, `role`) — unauthenticated and roles without an explicit grant are denied
 - `user.go` — `UserService`: `Create` (bcrypt hash), `GetByID`, `List`, `UpdatePassword` (re-hash), `Delete`; bcrypt cost is configurable via `BCRYPT_COST` env var (default 12)
 - `errors.go` — shared sentinel errors: `ErrNotFound`, `ErrConflict`, `ErrUnauthorized`, `ErrForbidden`, `ErrInvalidInput`
 
@@ -183,8 +183,8 @@ The service layer (`internal/service/`) sits between the repository and HTTP han
 
 #### Users
 
-- **Role**: This is the starting point for user management. Roles should be ordered hierarchically and there should be specific session timeouts per role. 
-- **Permission**: These are associate to specific composite's and role's. A role can have read or write flags per composite.
+- **Role**: This is the starting point for user management. Roles are ordered hierarchically and have a specific session timeout. `allow_registration` controls whether an unauthenticated user may self-register with that role.
+- **Permission**: Grants a role read/write access to either a user-defined composite or a built-in resource type (`composite`, `field`, `user`, `role`). Exactly one of `composite_id` or `resource_type` is set per permission row.
 - **User**: This is the user record, which contains a user's first and last name, email address, salted password hash and which role the user is associated with.
 
 #### Auditing
