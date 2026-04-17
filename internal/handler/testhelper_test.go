@@ -92,7 +92,7 @@ func newTestServer(t *testing.T) *testServer {
 	authSvc := service.NewAuthService(userRepo, roleRepo, "test-secret")
 	fieldSvc := service.NewFieldService(fieldRepo)
 	compositeSvc := service.NewCompositeService(compositeRepo, fieldSvc)
-	fieldValueSvc := service.NewFieldValueService(fieldValueRepo)
+	fieldValueSvc := service.NewFieldValueService(fieldValueRepo, fieldSvc)
 	entitySvc := service.NewEntityService(entityRepo, fieldValueSvc)
 
 	authHandler := handler.NewAuthHandler(authSvc, userSvc, roleSvc)

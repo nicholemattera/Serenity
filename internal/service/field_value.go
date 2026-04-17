@@ -20,15 +20,25 @@ type FieldValueService interface {
 }
 
 type fieldValueService struct {
-	repo repository.FieldValueRepository
+	repo     repository.FieldValueRepository
+	fieldSvc FieldService
 }
 
-func NewFieldValueService(repo repository.FieldValueRepository) FieldValueService {
-	return &fieldValueService{repo: repo}
+func NewFieldValueService(repo repository.FieldValueRepository, fieldSvc FieldService) FieldValueService {
+	return &fieldValueService{repo: repo, fieldSvc: fieldSvc}
 }
 
 // Set creates or updates the field value for the given entity+field pair.
 func (s *fieldValueService) Set(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error) {
+	field, err := s.fieldSvc.GetByID(ctx, fv.FieldID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validateFieldValue(field, fv.Value); err != nil {
+		return nil, err
+	}
+
 	existing, err := s.repo.GetByEntityAndField(ctx, fv.EntityID, fv.FieldID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err

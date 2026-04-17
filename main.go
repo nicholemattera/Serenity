@@ -58,7 +58,7 @@ func main() {
 	authSvc := service.NewAuthService(userRepo, roleRepo, cfg.JWTSecret)
 	fieldSvc := service.NewFieldService(fieldRepo)
 	compositeSvc := service.NewCompositeService(compositeRepo, fieldSvc)
-	fieldValueSvc := service.NewFieldValueService(fieldValueRepo)
+	fieldValueSvc := service.NewFieldValueService(fieldValueRepo, fieldSvc)
 	entitySvc := service.NewEntityService(entityRepo, fieldValueSvc)
 
 	// Handlers

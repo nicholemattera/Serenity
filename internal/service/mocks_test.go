@@ -98,6 +98,31 @@ func (m *mockPermissionRepo) Delete(ctx context.Context, id uuid.UUID, deletedBy
 	return nil
 }
 
+// --- FieldService mock ---
+
+type mockFieldService struct {
+	getByID func(ctx context.Context, id uuid.UUID) (*models.Field, error)
+}
+
+func (m *mockFieldService) Create(ctx context.Context, field *models.Field) (*models.Field, error) {
+	return nil, nil
+}
+func (m *mockFieldService) GetByID(ctx context.Context, id uuid.UUID) (*models.Field, error) {
+	if m.getByID != nil {
+		return m.getByID(ctx, id)
+	}
+	return &models.Field{ID: id, Type: models.FieldTypeShortText}, nil
+}
+func (m *mockFieldService) ListByComposite(ctx context.Context, compositeID uuid.UUID, p repository.Pagination) (*repository.Page[models.Field], error) {
+	return nil, nil
+}
+func (m *mockFieldService) Update(ctx context.Context, field *models.Field) (*models.Field, error) {
+	return nil, nil
+}
+func (m *mockFieldService) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
+	return nil
+}
+
 // --- FieldValueRepository mock ---
 
 type mockFieldValueRepo struct {
