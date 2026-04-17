@@ -1,48 +1,83 @@
-package main
+package handler_test
 
 import (
+	"bytes"
 	"context"
-	"log/slog"
+	"encoding/json"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+	"net/http/httptest"
+	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/nicholemattera/serenity/internal/config"
 	"github.com/nicholemattera/serenity/internal/database"
 	"github.com/nicholemattera/serenity/internal/handler"
 	"github.com/nicholemattera/serenity/internal/repository"
 	"github.com/nicholemattera/serenity/internal/service"
 )
 
-func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
+// testServer holds the router and all services for E2E tests.
+type testServer struct {
+	router        http.Handler
+	roleSvc       service.RoleService
+	userSvc       service.UserService
+	permissionSvc service.PermissionService
+	authSvc       service.AuthService
+	compositeSvc  service.CompositeService
+	fieldSvc      service.FieldService
+	entitySvc     service.EntityService
+	fieldValueSvc service.FieldValueService
+}
 
-	cfg, err := config.Load()
-	if err != nil {
-		slog.Error("failed to load config", "error", err)
-		os.Exit(1)
-	}
-
+func newTestDB(t *testing.T) *pgxpool.Pool {
+	t.Helper()
 	ctx := context.Background()
-	db, err := database.Connect(ctx, cfg.DatabaseURL)
+
+	container, err := postgres.Run(ctx,
+		"postgres:16-alpine",
+		postgres.WithDatabase("serenity_test"),
+		postgres.WithUsername("test"),
+		postgres.WithPassword("test"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+		),
+	)
 	if err != nil {
-		slog.Error("failed to connect to database", "error", err)
-		os.Exit(1)
+		t.Fatalf("failed to start postgres container: %v", err)
 	}
-	defer db.Close()
+	t.Cleanup(func() {
+		if err := container.Terminate(ctx); err != nil {
+			t.Errorf("failed to terminate container: %v", err)
+		}
+	})
 
-	if err := database.Migrate(db); err != nil {
-		slog.Error("failed to run migrations", "error", err)
-		os.Exit(1)
+	connStr, err := container.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		t.Fatalf("failed to get connection string: %v", err)
 	}
 
-	// Repositories
+	pool, err := database.Connect(ctx, connStr)
+	if err != nil {
+		t.Fatalf("failed to connect to test database: %v", err)
+	}
+	t.Cleanup(func() { pool.Close() })
+
+	if err := database.Migrate(pool); err != nil {
+		t.Fatalf("failed to run migrations: %v", err)
+	}
+
+	return pool
+}
+
+func newTestServer(t *testing.T) *testServer {
+	t.Helper()
+	db := newTestDB(t)
+
 	roleRepo := repository.NewRoleRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	permissionRepo := repository.NewPermissionRepository(db)
@@ -51,17 +86,15 @@ func main() {
 	entityRepo := repository.NewEntityRepository(db)
 	fieldValueRepo := repository.NewFieldValueRepository(db)
 
-	// Services
 	roleSvc := service.NewRoleService(roleRepo)
-	userSvc := service.NewUserService(userRepo, cfg.BCryptCost)
+	userSvc := service.NewUserService(userRepo, 4) // low bcrypt cost for tests
 	permissionSvc := service.NewPermissionService(permissionRepo)
-	authSvc := service.NewAuthService(userRepo, roleRepo, cfg.JWTSecret)
+	authSvc := service.NewAuthService(userRepo, roleRepo, "test-secret")
 	fieldSvc := service.NewFieldService(fieldRepo)
 	compositeSvc := service.NewCompositeService(compositeRepo, fieldSvc)
 	fieldValueSvc := service.NewFieldValueService(fieldValueRepo)
 	entitySvc := service.NewEntityService(entityRepo, fieldValueSvc)
 
-	// Handlers
 	authHandler := handler.NewAuthHandler(authSvc, userSvc, roleSvc)
 	roleHandler := handler.NewRoleHandler(roleSvc, permissionSvc)
 	permissionHandler := handler.NewPermissionHandler(permissionSvc)
@@ -72,21 +105,12 @@ func main() {
 	fieldValueHandler := handler.NewFieldValueHandler(fieldValueSvc, entitySvc, compositeSvc, permissionSvc)
 
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.RequestID)
 	r.Use(handler.Authenticate(authSvc))
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
-
-	// Auth
 	r.Post("/auth/login", authHandler.Login)
 	r.Post("/auth/register", authHandler.Register)
 
-	// Roles
 	r.Get("/roles", roleHandler.List)
 	r.Post("/roles", roleHandler.Create)
 	r.Get("/roles/{id}", roleHandler.GetByID)
@@ -94,13 +118,11 @@ func main() {
 	r.Delete("/roles/{id}", roleHandler.Delete)
 	r.Get("/roles/{roleID}/permissions", permissionHandler.ListByRole)
 
-	// Permissions
 	r.Post("/permissions", permissionHandler.Create)
 	r.Get("/permissions/{id}", permissionHandler.GetByID)
 	r.Put("/permissions/{id}", permissionHandler.Update)
 	r.Delete("/permissions/{id}", permissionHandler.Delete)
 
-	// Users
 	r.Get("/users", userHandler.List)
 	r.Post("/users", userHandler.Create)
 	r.Get("/users/{id}", userHandler.GetByID)
@@ -108,7 +130,6 @@ func main() {
 	r.Put("/users/{id}/password", userHandler.UpdatePassword)
 	r.Delete("/users/{id}", userHandler.Delete)
 
-	// Composites
 	r.Get("/composites", compositeHandler.List)
 	r.Post("/composites", compositeHandler.Create)
 	r.Get("/composites/slug/{slug}", compositeHandler.GetBySlug)
@@ -116,14 +137,12 @@ func main() {
 	r.Put("/composites/{id}", compositeHandler.Update)
 	r.Delete("/composites/{id}", compositeHandler.Delete)
 
-	// Fields
 	r.Get("/composites/{compositeID}/fields", fieldHandler.ListByComposite)
 	r.Post("/fields", fieldHandler.Create)
 	r.Get("/fields/{id}", fieldHandler.GetByID)
 	r.Put("/fields/{id}", fieldHandler.Update)
 	r.Delete("/fields/{id}", fieldHandler.Delete)
 
-	// Entities
 	r.Get("/composites/{compositeID}/entities", entityHandler.ListByComposite)
 	r.Get("/composites/{compositeID}/entities/slug/{slug}", entityHandler.GetBySlug)
 	r.Post("/entities", entityHandler.Create)
@@ -134,38 +153,58 @@ func main() {
 	r.Post("/entities/{id}/move", entityHandler.Move)
 	r.Post("/entities/{id}/move-root", entityHandler.MoveRoot)
 
-	// Field values
 	r.Get("/entities/{entityID}/field-values", fieldValueHandler.ListByEntity)
 	r.Post("/field-values", fieldValueHandler.Set)
 	r.Get("/field-values/{id}", fieldValueHandler.GetByID)
 	r.Delete("/field-values/{id}", fieldValueHandler.Delete)
 
-	srv := &http.Server{
-		Addr:    ":" + cfg.Port,
-		Handler: r,
+	return &testServer{
+		router:        r,
+		roleSvc:       roleSvc,
+		userSvc:       userSvc,
+		permissionSvc: permissionSvc,
+		authSvc:       authSvc,
+		compositeSvc:  compositeSvc,
+		fieldSvc:      fieldSvc,
+		entitySvc:     entitySvc,
+		fieldValueSvc: fieldValueSvc,
 	}
+}
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		slog.Info("server listening", "port", cfg.Port)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server error", "error", err)
-			os.Exit(1)
+// do executes a request against the test server.
+func (s *testServer) do(method, path string, body any, token string) *httptest.ResponseRecorder {
+	var bodyBytes []byte
+	if body != nil {
+		var err error
+		bodyBytes, err = json.Marshal(body)
+		if err != nil {
+			panic(err)
 		}
-	}()
-
-	<-quit
-	slog.Info("shutting down...")
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		slog.Error("forced shutdown", "error", err)
-		os.Exit(1)
 	}
 
-	slog.Info("server stopped")
+	req := httptest.NewRequest(method, path, bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	rr := httptest.NewRecorder()
+	s.router.ServeHTTP(rr, req)
+	return rr
+}
+
+// decode unmarshals the response body into v.
+func decode(t *testing.T, rr *httptest.ResponseRecorder, v any) {
+	t.Helper()
+	if err := json.NewDecoder(rr.Body).Decode(v); err != nil {
+		t.Fatalf("failed to decode response: %v (body: %s)", err, rr.Body.String())
+	}
+}
+
+// assertStatus fails the test if the response code does not match.
+func assertStatus(t *testing.T, rr *httptest.ResponseRecorder, expected int) {
+	t.Helper()
+	if rr.Code != expected {
+		t.Fatalf("expected status %d, got %d (body: %s)", expected, rr.Code, rr.Body.String())
+	}
 }
