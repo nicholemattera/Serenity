@@ -31,7 +31,25 @@ This requires the following tools to be installed:
 ### Build & Run
 ```bash
 make build                                      # Build the binary
-go run main.go                                  # Run directly
+go run main.go service                          # Run the HTTP server directly
+```
+
+### CLI Commands
+```bash
+serenity service                                # Start the HTTP server
+serenity role                                   # List roles
+serenity role create --name "Admin" --hierarchy-level 1
+serenity role get <id>
+serenity role update <id> --name "Super Admin"
+serenity role delete <id>
+serenity user                                   # List users
+serenity user create --first-name "Jane" --last-name "Doe" --email "jane@example.com" --password "secret" --role-id <id>
+serenity permission --role-id <id>              # List permissions for a role
+serenity permission create --role-id <id> --resource-type composite --can-read --can-write
+serenity composite                              # List composites
+serenity composite create --name "Posts" --slug "posts"
+serenity field --composite-id <id>             # List fields for a composite
+serenity field create --composite-id <id> --name "Title" --slug "title" --type short_text
 ```
 
 ### Testing
@@ -120,9 +138,17 @@ Serenity follows these core design principles:
 ### Project Structure
 ```
 Serenity/
-├── main.go                          # Entry point — connects DB, runs migrations, starts server
+├── main.go                          # Entry point — delegates to cmd.Execute()
 ├── go.mod                           # Go module definition
 ├── Makefile                         # Build and development commands
+├── cmd/                             # Cobra CLI commands
+│   ├── root.go                      # Root command, appState, initApp(), Execute()
+│   ├── service.go                   # `serenity service` — HTTP server
+│   ├── role.go                      # `serenity role` CRUD subcommands
+│   ├── user.go                      # `serenity user` CRUD subcommands
+│   ├── permission.go                # `serenity permission` CRUD subcommands
+│   ├── composite.go                 # `serenity composite` CRUD subcommands
+│   └── field.go                     # `serenity field` CRUD subcommands
 ├── configs/
 │   └── .env.example                 # Environment variable template
 ├── internal/
@@ -130,6 +156,7 @@ Serenity/
 │   ├── database/
 │   │   ├── database.go              # pgx connection pool + Migrate()
 │   │   └── migrations/              # goose SQL migration files (embedded in binary)
+│   ├── handler/                     # HTTP handlers — one file per domain
 │   ├── models/                      # Go structs for all domain types + shared Audit struct
 │   ├── repository/                  # Database access layer — one file per model
 │   └── service/                     # Business logic layer — one file per domain
