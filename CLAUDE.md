@@ -133,7 +133,8 @@ Serenity/
 │   ├── models/                      # Go structs for all domain types + shared Audit struct
 │   ├── repository/                  # Database access layer — one file per model
 │   └── service/                     # Business logic layer — one file per domain
-├── api/                             # OpenAPI/Swagger specs (future)
+├── api/
+│   └── openapi.yaml                 # OpenAPI 3.1 specification
 └── .github/                         # GitHub Actions CI workflow + CODEOWNERS
 ```
 

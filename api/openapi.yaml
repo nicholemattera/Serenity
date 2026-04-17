@@ -1,0 +1,1726 @@
+openapi: 3.1.0
+
+info:
+  title: Serenity
+  description: |
+    Serenity is an open-source API-driven content management system designed to be simple and flexible.
+
+    ## Authentication
+
+    Most endpoints require a Bearer JWT token obtained via `POST /auth/login`.
+
+    Tokens are issued per-user and expire after the session timeout configured on the user's role.
+
+    ```
+    Authorization: Bearer <token>
+    ```
+
+    ## Permissions
+
+    Access to **entities and field values** is governed per-composite via `default_read` / `default_write`
+    flags and explicit role-based permission rows. Unauthenticated requests fall back to the composite
+    defaults.
+
+    Access to **built-in resources** (composites, fields, users, roles, permissions) requires an
+    explicit permission row with `resource_type` set. Unauthenticated requests are always denied for
+    built-in resources.
+
+    ## Pagination
+
+    All list endpoints accept `limit` (1–100, default 20) and `offset` (default 0) query parameters
+    and return a standard page envelope.
+
+    ## Enrichment
+
+    `GET` and `PUT` endpoints for composites and entities accept `?enrich=true` to eager-load
+    related fields or field values into the response.
+  version: 0.1.0
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: Auth
+  - name: Roles
+  - name: Permissions
+  - name: Users
+  - name: Composites
+  - name: Fields
+  - name: Entities
+  - name: Field Values
+
+# ─── Reusable components ────────────────────────────────────────────────────
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+    offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+    enrich:
+      name: enrich
+      in: query
+      description: When true, eager-load related fields or field values.
+      schema:
+        type: boolean
+        default: false
+
+  schemas:
+    # ── Audit ────────────────────────────────────────────────────────────────
+    Audit:
+      type: object
+      properties:
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          readOnly: true
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+        deleted_by:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+
+    # ── Pagination ───────────────────────────────────────────────────────────
+    Pagination:
+      type: object
+      required: [total, limit, offset]
+      properties:
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    # ── Error ────────────────────────────────────────────────────────────────
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    # ── Role ─────────────────────────────────────────────────────────────────
+    Role:
+      allOf:
+        - type: object
+          required: [id, name, hierarchy_level, session_timeout, allow_registration]
+          properties:
+            id:
+              type: string
+              format: uuid
+              readOnly: true
+            name:
+              type: string
+              example: editor
+            hierarchy_level:
+              type: integer
+              description: Lower numbers indicate higher privilege.
+              example: 10
+            session_timeout:
+              type: integer
+              description: JWT lifetime in seconds.
+              example: 3600
+            allow_registration:
+              type: boolean
+              description: Whether unauthenticated users may self-register with this role.
+              default: false
+        - $ref: '#/components/schemas/Audit'
+
+    RolePage:
+      allOf:
+        - $ref: '#/components/schemas/Pagination'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Role'
+
+    RoleInput:
+      type: object
+      required: [name, hierarchy_level, session_timeout]
+      properties:
+        name:
+          type: string
+        hierarchy_level:
+          type: integer
+        session_timeout:
+          type: integer
+        allow_registration:
+          type: boolean
+          default: false
+
+    # ── Permission ───────────────────────────────────────────────────────────
+    ResourceType:
+      type: string
+      enum: [composite, field, user, role]
+      description: Built-in resource type targeted by this permission.
+
+    Permission:
+      allOf:
+        - type: object
+          required: [id, role_id, can_read, can_write]
+          properties:
+            id:
+              type: string
+              format: uuid
+              readOnly: true
+            role_id:
+              type: string
+              format: uuid
+            composite_id:
+              type: string
+              format: uuid
+              nullable: true
+              description: Set for user-defined composite permissions. Mutually exclusive with resource_type.
+            resource_type:
+              $ref: '#/components/schemas/ResourceType'
+              nullable: true
+              description: Set for built-in resource permissions. Mutually exclusive with composite_id.
+            can_read:
+              type: boolean
+            can_write:
+              type: boolean
+        - $ref: '#/components/schemas/Audit'
+
+    PermissionPage:
+      allOf:
+        - $ref: '#/components/schemas/Pagination'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Permission'
+
+    PermissionInput:
+      type: object
+      required: [role_id, can_read, can_write]
+      properties:
+        role_id:
+          type: string
+          format: uuid
+        composite_id:
+          type: string
+          format: uuid
+          nullable: true
+        resource_type:
+          $ref: '#/components/schemas/ResourceType'
+          nullable: true
+        can_read:
+          type: boolean
+        can_write:
+          type: boolean
+
+    PermissionUpdateInput:
+      type: object
+      required: [can_read, can_write]
+      properties:
+        can_read:
+          type: boolean
+        can_write:
+          type: boolean
+
+    # ── User ─────────────────────────────────────────────────────────────────
+    User:
+      allOf:
+        - type: object
+          required: [id, first_name, last_name, email, role_id]
+          properties:
+            id:
+              type: string
+              format: uuid
+              readOnly: true
+            first_name:
+              type: string
+            last_name:
+              type: string
+            email:
+              type: string
+              format: email
+            role_id:
+              type: string
+              format: uuid
+        - $ref: '#/components/schemas/Audit'
+
+    UserPage:
+      allOf:
+        - $ref: '#/components/schemas/Pagination'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/User'
+
+    UserInput:
+      type: object
+      required: [first_name, last_name, email, password, role_id]
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        role_id:
+          type: string
+          format: uuid
+
+    UserUpdateInput:
+      type: object
+      required: [first_name, last_name, email, role_id]
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        role_id:
+          type: string
+          format: uuid
+
+    # ── Field ─────────────────────────────────────────────────────────────────
+    FieldType:
+      type: string
+      enum:
+        - association
+        - checkbox
+        - color
+        - date
+        - datetime
+        - dropdown
+        - email
+        - file
+        - long_text
+        - number
+        - phone
+        - short_text
+        - time
+        - url
+
+    Field:
+      allOf:
+        - type: object
+          required: [id, composite_id, name, slug, type, required, position]
+          properties:
+            id:
+              type: string
+              format: uuid
+              readOnly: true
+            composite_id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            slug:
+              type: string
+            type:
+              $ref: '#/components/schemas/FieldType'
+            required:
+              type: boolean
+              default: false
+            position:
+              type: integer
+            default_value:
+              type: string
+              nullable: true
+            metadata:
+              description: |
+                Type-specific configuration. For `dropdown`, a JSON array of option strings.
+                For `association`, the UUID of the target composite.
+              nullable: true
+        - $ref: '#/components/schemas/Audit'
+
+    FieldPage:
+      allOf:
+        - $ref: '#/components/schemas/Pagination'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Field'
+
+    FieldInput:
+      type: object
+      required: [composite_id, name, slug, type, position]
+      properties:
+        composite_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        type:
+          $ref: '#/components/schemas/FieldType'
+        required:
+          type: boolean
+          default: false
+        position:
+          type: integer
+        default_value:
+          type: string
+          nullable: true
+        metadata:
+          nullable: true
+
+    # ── Composite ─────────────────────────────────────────────────────────────
+    Composite:
+      allOf:
+        - type: object
+          required: [id, name, slug, default_read, default_write]
+          properties:
+            id:
+              type: string
+              format: uuid
+              readOnly: true
+            name:
+              type: string
+            slug:
+              type: string
+            default_read:
+              type: boolean
+              description: Whether unauthenticated users may read entities in this composite.
+            default_write:
+              type: boolean
+              description: Whether unauthenticated users may write entities in this composite.
+        - $ref: '#/components/schemas/Audit'
+
+    CompositeDetail:
+      allOf:
+        - $ref: '#/components/schemas/Composite'
+        - type: object
+          properties:
+            fields:
+              type: array
+              items:
+                $ref: '#/components/schemas/Field'
+              description: Present when ?enrich=true.
+
+    CompositePage:
+      allOf:
+        - $ref: '#/components/schemas/Pagination'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/CompositeDetail'
+
+    CompositeInput:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        default_read:
+          type: boolean
+          default: false
+        default_write:
+          type: boolean
+          default: false
+
+    # ── Entity ────────────────────────────────────────────────────────────────
+    Entity:
+      allOf:
+        - type: object
+          required: [id, composite_id, tree_id, name, slug, left, right]
+          properties:
+            id:
+              type: string
+              format: uuid
+              readOnly: true
+            composite_id:
+              type: string
+              format: uuid
+            tree_id:
+              type: string
+              format: uuid
+              description: ID of the root entity that anchors this tree.
+            name:
+              type: string
+            slug:
+              type: string
+            left:
+              type: integer
+              description: Nested Set Model left value.
+            right:
+              type: integer
+              description: Nested Set Model right value.
+            root_position:
+              type: integer
+              nullable: true
+              description: Ordering of root entities within a composite. Present only on root nodes.
+        - $ref: '#/components/schemas/Audit'
+
+    EntityDetail:
+      allOf:
+        - $ref: '#/components/schemas/Entity'
+        - type: object
+          properties:
+            field_values:
+              type: array
+              items:
+                $ref: '#/components/schemas/FieldValue'
+              description: Present when ?enrich=true.
+
+    EntityPage:
+      allOf:
+        - $ref: '#/components/schemas/Pagination'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/EntityDetail'
+
+    EntityInput:
+      type: object
+      required: [composite_id, name, slug]
+      properties:
+        composite_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Parent entity ID. Must be within the same tree.
+        after_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Sibling entity to insert after. Null places the entity first.
+
+    EntityUpdateInput:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+
+    MoveInput:
+      type: object
+      properties:
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: New parent entity ID. Null promotes the entity to root.
+        after_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Sibling to position after. Null places the entity first among siblings.
+
+    MoveRootInput:
+      type: object
+      properties:
+        after_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Root entity to position after. Null moves the entity to first position.
+
+    # ── Field Value ───────────────────────────────────────────────────────────
+    FieldValue:
+      allOf:
+        - type: object
+          required: [id, entity_id, field_id, value]
+          properties:
+            id:
+              type: string
+              format: uuid
+              readOnly: true
+            entity_id:
+              type: string
+              format: uuid
+            field_id:
+              type: string
+              format: uuid
+            value:
+              type: string
+              description: |
+                String representation of the value. Format is validated against the field type:
+                - **checkbox**: `"true"` or `"false"`
+                - **number**: numeric string
+                - **email**: valid email address
+                - **url**: valid URL with scheme and host
+                - **phone**: E.164-style or common phone format
+                - **color**: `#RGB` or `#RRGGBB`
+                - **date**: `YYYY-MM-DD`
+                - **datetime**: RFC3339
+                - **time**: `HH:MM` or `HH:MM:SS`
+                - **dropdown**: one of the values defined in the field's metadata
+                - **association**: UUID of the referenced entity
+                - **short_text / long_text / file**: any string
+        - $ref: '#/components/schemas/Audit'
+
+    FieldValuePage:
+      allOf:
+        - $ref: '#/components/schemas/Pagination'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/FieldValue'
+
+    FieldValueInput:
+      type: object
+      required: [entity_id, field_id, value]
+      properties:
+        entity_id:
+          type: string
+          format: uuid
+        field_id:
+          type: string
+          format: uuid
+        value:
+          type: string
+
+  responses:
+    NoContent:
+      description: Success — no content returned.
+
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Missing or invalid authentication token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Authenticated but insufficient permissions.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Conflict:
+      description: A resource with conflicting unique fields already exists.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    UnprocessableEntity:
+      description: Validation error — check the error message for details.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+# ─── Paths ───────────────────────────────────────────────────────────────────
+
+paths:
+
+  # ── Auth ──────────────────────────────────────────────────────────────────
+
+  /auth/login:
+    post:
+      operationId: login
+      summary: Obtain a JWT token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/register:
+    post:
+      operationId: register
+      summary: Self-register a new user
+      description: |
+        Creates a new user account. The target role must have `allow_registration: true`.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [first_name, last_name, email, password, role_id]
+              properties:
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                role_id:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: User registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  # ── Roles ─────────────────────────────────────────────────────────────────
+
+  /roles:
+    get:
+      operationId: listRoles
+      summary: List roles
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: Paginated list of roles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolePage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      operationId: createRole
+      summary: Create a role
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleInput'
+      responses:
+        '201':
+          description: Role created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /roles/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+
+    get:
+      operationId: getRoleByID
+      summary: Get a role
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Role found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      operationId: updateRole
+      summary: Update a role
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleInput'
+      responses:
+        '200':
+          description: Role updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      operationId: deleteRole
+      summary: Delete a role
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /roles/{roleID}/permissions:
+    get:
+      operationId: listPermissionsByRole
+      summary: List permissions for a role
+      tags: [Permissions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roleID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: Paginated list of permissions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── Permissions ───────────────────────────────────────────────────────────
+
+  /permissions:
+    post:
+      operationId: createPermission
+      summary: Create a permission
+      description: |
+        Exactly one of `composite_id` or `resource_type` must be set.
+      tags: [Permissions]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PermissionInput'
+      responses:
+        '201':
+          description: Permission created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Permission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /permissions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+
+    get:
+      operationId: getPermissionByID
+      summary: Get a permission
+      tags: [Permissions]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Permission found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Permission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      operationId: updatePermission
+      summary: Update a permission
+      description: Only `can_read` and `can_write` can be changed after creation.
+      tags: [Permissions]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PermissionUpdateInput'
+      responses:
+        '200':
+          description: Permission updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Permission'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      operationId: deletePermission
+      summary: Delete a permission
+      tags: [Permissions]
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Users ─────────────────────────────────────────────────────────────────
+
+  /users:
+    get:
+      operationId: listUsers
+      summary: List users
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: Paginated list of users.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      operationId: createUser
+      summary: Create a user
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInput'
+      responses:
+        '201':
+          description: User created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+
+    get:
+      operationId: getUserByID
+      summary: Get a user
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      operationId: updateUser
+      summary: Update a user
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateInput'
+      responses:
+        '200':
+          description: User updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      operationId: deleteUser
+      summary: Delete a user
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{id}/password:
+    parameters:
+      - $ref: '#/components/parameters/id'
+
+    put:
+      operationId: updateUserPassword
+      summary: Update a user's password
+      description: |
+        Users may update their own password. Updating another user's password requires
+        the write permission on the `user` resource type.
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  format: password
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Composites ────────────────────────────────────────────────────────────
+
+  /composites:
+    get:
+      operationId: listComposites
+      summary: List composites
+      tags: [Composites]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/enrich'
+      responses:
+        '200':
+          description: Paginated list of composites.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompositePage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      operationId: createComposite
+      summary: Create a composite
+      tags: [Composites]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompositeInput'
+      responses:
+        '201':
+          description: Composite created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Composite'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /composites/slug/{slug}:
+    get:
+      operationId: getCompositeBySlug
+      summary: Get a composite by slug
+      tags: [Composites]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/enrich'
+      responses:
+        '200':
+          description: Composite found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompositeDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /composites/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+
+    get:
+      operationId: getCompositeByID
+      summary: Get a composite
+      tags: [Composites]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/enrich'
+      responses:
+        '200':
+          description: Composite found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompositeDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      operationId: updateComposite
+      summary: Update a composite
+      tags: [Composites]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/enrich'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompositeInput'
+      responses:
+        '200':
+          description: Composite updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompositeDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      operationId: deleteComposite
+      summary: Delete a composite
+      tags: [Composites]
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Fields ────────────────────────────────────────────────────────────────
+
+  /composites/{compositeID}/fields:
+    get:
+      operationId: listFieldsByComposite
+      summary: List fields for a composite
+      tags: [Fields]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: compositeID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: Paginated list of fields ordered by position.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /fields:
+    post:
+      operationId: createField
+      summary: Create a field
+      tags: [Fields]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldInput'
+      responses:
+        '201':
+          description: Field created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Field'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /fields/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+
+    get:
+      operationId: getFieldByID
+      summary: Get a field
+      tags: [Fields]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Field found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Field'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      operationId: updateField
+      summary: Update a field
+      tags: [Fields]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldInput'
+      responses:
+        '200':
+          description: Field updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Field'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      operationId: deleteField
+      summary: Delete a field
+      tags: [Fields]
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Entities ──────────────────────────────────────────────────────────────
+
+  /composites/{compositeID}/entities:
+    get:
+      operationId: listEntitiesByComposite
+      summary: List root entities for a composite
+      description: Returns root entities ordered by `root_position`, then `lft`.
+      tags: [Entities]
+      parameters:
+        - name: compositeID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/enrich'
+      responses:
+        '200':
+          description: Paginated list of entities.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /composites/{compositeID}/entities/slug/{slug}:
+    get:
+      operationId: getEntityBySlug
+      summary: Get an entity by slug
+      tags: [Entities]
+      parameters:
+        - name: compositeID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/enrich'
+      responses:
+        '200':
+          description: Entity found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /entities:
+    post:
+      operationId: createEntity
+      summary: Create an entity
+      tags: [Entities]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityInput'
+      responses:
+        '201':
+          description: Entity created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /entities/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+
+    get:
+      operationId: getEntityByID
+      summary: Get an entity
+      tags: [Entities]
+      parameters:
+        - $ref: '#/components/parameters/enrich'
+      responses:
+        '200':
+          description: Entity found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      operationId: updateEntity
+      summary: Update an entity
+      tags: [Entities]
+      parameters:
+        - $ref: '#/components/parameters/enrich'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityUpdateInput'
+      responses:
+        '200':
+          description: Entity updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      operationId: deleteEntity
+      summary: Delete an entity
+      tags: [Entities]
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /entities/{id}/children:
+    get:
+      operationId: listEntityChildren
+      summary: List direct children of an entity
+      tags: [Entities]
+      parameters:
+        - $ref: '#/components/parameters/id'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/enrich'
+      responses:
+        '200':
+          description: Paginated list of child entities.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /entities/{id}/move:
+    post:
+      operationId: moveEntity
+      summary: Move an entity within its tree
+      description: |
+        Repositions an entity and its subtree. Set `parent_id` to null to promote to root.
+        The entity must stay within the same tree.
+      tags: [Entities]
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveInput'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /entities/{id}/move-root:
+    post:
+      operationId: moveEntityRoot
+      summary: Reorder a root entity within its composite
+      description: |
+        Changes the `root_position` of a root entity among its siblings in the composite.
+        The entity must currently be a root node (no parent).
+      tags: [Entities]
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveRootInput'
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Field Values ──────────────────────────────────────────────────────────
+
+  /entities/{entityID}/field-values:
+    get:
+      operationId: listFieldValuesByEntity
+      summary: List field values for an entity
+      tags: [Field Values]
+      parameters:
+        - name: entityID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: Paginated list of field values.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldValuePage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /field-values:
+    post:
+      operationId: setFieldValue
+      summary: Set a field value
+      description: |
+        Creates or updates the value for a given entity+field pair (upsert).
+        The value is validated against the field's type before being saved.
+      tags: [Field Values]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FieldValueInput'
+      responses:
+        '200':
+          description: Field value created or updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldValue'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /field-values/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+
+    get:
+      operationId: getFieldValueByID
+      summary: Get a field value
+      tags: [Field Values]
+      responses:
+        '200':
+          description: Field value found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldValue'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      operationId: deleteFieldValue
+      summary: Delete a field value
+      tags: [Field Values]
+      responses:
+        '204':
+          $ref: '#/components/responses/NoContent'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
