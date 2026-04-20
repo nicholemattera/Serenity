@@ -555,6 +555,13 @@ components:
           format: uuid
           nullable: true
           description: Sibling entity to insert after. Null places the entity first.
+        field_values:
+          type: object
+          additionalProperties:
+            type: string
+          description: |
+            Map of field slug to value. All fields marked `required` on the composite must be
+            included. Values are validated against the field type.
 
     EntityUpdateInput:
       type: object
@@ -564,6 +571,13 @@ components:
           type: string
         slug:
           type: string
+        field_values:
+          type: object
+          additionalProperties:
+            type: string
+          description: |
+            Map of field slug to value. All fields marked `required` on the composite must be
+            included. Values are validated against the field type.
 
     MoveInput:
       type: object
@@ -672,6 +686,13 @@ components:
 
     Conflict:
       description: A resource with conflicting unique fields already exists.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    BadRequest:
+      description: Bad request — missing or invalid input.
       content:
         application/json:
           schema:
@@ -1504,6 +1525,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Entity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
@@ -1550,6 +1573,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EntityDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
