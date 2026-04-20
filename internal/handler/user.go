@@ -38,7 +38,8 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	page, err := h.userSvc.List(r.Context(), ParsePagination(r))
+	p := ParsePagination(r)
+	page, err := h.userSvc.List(r.Context(), &p)
 	if err != nil {
 		ServiceError(w, err)
 		return

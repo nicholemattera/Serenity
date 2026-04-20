@@ -66,7 +66,8 @@ func (h *PermissionHandler) ListByRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	page, err := h.permissionSvc.ListByRole(r.Context(), roleID, ParsePagination(r))
+	p := ParsePagination(r)
+	page, err := h.permissionSvc.ListByRole(r.Context(), roleID, &p)
 	if err != nil {
 		ServiceError(w, err)
 		return

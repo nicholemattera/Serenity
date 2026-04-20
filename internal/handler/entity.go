@@ -80,7 +80,8 @@ func (h *EntityHandler) ListByComposite(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	page, err := h.entitySvc.ListByComposite(r.Context(), compositeID, ParsePagination(r), ParseEnrich(r))
+	p := ParsePagination(r)
+	page, err := h.entitySvc.ListByComposite(r.Context(), compositeID, &p, ParseEnrich(r))
 	if err != nil {
 		ServiceError(w, err)
 		return
@@ -107,7 +108,8 @@ func (h *EntityHandler) ListChildren(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	page, err := h.entitySvc.ListChildren(r.Context(), id, ParsePagination(r), ParseEnrich(r))
+	p := ParsePagination(r)
+	page, err := h.entitySvc.ListChildren(r.Context(), id, &p, ParseEnrich(r))
 	if err != nil {
 		ServiceError(w, err)
 		return

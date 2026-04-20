@@ -17,8 +17,8 @@ type EntityRepository interface {
 	Create(ctx context.Context, entity *models.Entity, parentID *uuid.UUID, afterID *uuid.UUID) (*models.Entity, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Entity, error)
 	GetBySlug(ctx context.Context, compositeID uuid.UUID, slug string) (*models.Entity, error)
-	ListByComposite(ctx context.Context, compositeID uuid.UUID, p Pagination) (*Page[models.Entity], error)
-	ListChildren(ctx context.Context, parentID uuid.UUID, p Pagination) (*Page[models.Entity], error)
+	ListByComposite(ctx context.Context, compositeID uuid.UUID, p *Pagination) (*Page[models.Entity], error)
+	ListChildren(ctx context.Context, parentID uuid.UUID, p *Pagination) (*Page[models.Entity], error)
 	Move(ctx context.Context, id uuid.UUID, parentID *uuid.UUID, afterID *uuid.UUID) error
 	// MoveRoot repositions a root entity within its composite. afterID nil = move to first position.
 	MoveRoot(ctx context.Context, id uuid.UUID, afterID *uuid.UUID) error
@@ -179,7 +179,7 @@ func (r *entityRepository) GetBySlug(ctx context.Context, compositeID uuid.UUID,
 	return entity, nil
 }
 
-func (r *entityRepository) ListByComposite(ctx context.Context, compositeID uuid.UUID, p Pagination) (*Page[models.Entity], error) {
+func (r *entityRepository) ListByComposite(ctx context.Context, compositeID uuid.UUID, p *Pagination) (*Page[models.Entity], error) {
 	var total int
 	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM entities WHERE composite_id = $1 AND deleted_at IS NULL`, compositeID).Scan(&total)
 	if err != nil {
@@ -187,13 +187,8 @@ func (r *entityRepository) ListByComposite(ctx context.Context, compositeID uuid
 	}
 
 	// Root nodes ordered by root_position; non-root nodes follow their root by lft
-	rows, err := r.db.Query(ctx, `
-		SELECT `+entityColumns+`
-		FROM entities
-		WHERE composite_id = $1 AND deleted_at IS NULL
-		ORDER BY root_position ASC, lft ASC
-		LIMIT $2 OFFSET $3
-	`, compositeID, p.Limit, p.Offset)
+	query, args := paginateQuery(`SELECT `+entityColumns+` FROM entities WHERE composite_id = $1 AND deleted_at IS NULL ORDER BY root_position ASC, lft ASC`, []any{compositeID}, p)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list entities: %w", err)
 	}
@@ -208,11 +203,11 @@ func (r *entityRepository) ListByComposite(ctx context.Context, compositeID uuid
 		entities = append(entities, entity)
 	}
 
-	return &Page[models.Entity]{Data: entities, Total: total, Limit: p.Limit, Offset: p.Offset}, nil
+	return pageResult(entities, total, p), nil
 }
 
 // ListChildren returns the direct children of the given entity using the Nested Set Model.
-func (r *entityRepository) ListChildren(ctx context.Context, parentID uuid.UUID, p Pagination) (*Page[models.Entity], error) {
+func (r *entityRepository) ListChildren(ctx context.Context, parentID uuid.UUID, p *Pagination) (*Page[models.Entity], error) {
 	var treeID uuid.UUID
 	var parentLft, parentRgt int
 	err := r.db.QueryRow(ctx, `
@@ -237,19 +232,9 @@ func (r *entityRepository) ListChildren(ctx context.Context, parentID uuid.UUID,
 		return nil, fmt.Errorf("failed to count children: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, `
-		SELECT `+entityColumns+`
-		FROM entities
-		WHERE tree_id = $1 AND lft > $2 AND rgt < $3 AND deleted_at IS NULL
-		  AND NOT EXISTS (
-		    SELECT 1 FROM entities p
-		    WHERE p.tree_id = $1 AND p.deleted_at IS NULL
-		      AND p.lft > $2 AND p.rgt < $3
-		      AND entities.lft > p.lft AND entities.rgt < p.rgt
-		  )
-		ORDER BY lft ASC
-		LIMIT $4 OFFSET $5
-	`, treeID, parentLft, parentRgt, p.Limit, p.Offset)
+	childBaseQuery := `SELECT ` + entityColumns + ` FROM entities WHERE tree_id = $1 AND lft > $2 AND rgt < $3 AND deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM entities p WHERE p.tree_id = $1 AND p.deleted_at IS NULL AND p.lft > $2 AND p.rgt < $3 AND entities.lft > p.lft AND entities.rgt < p.rgt) ORDER BY lft ASC`
+	childQuery, childArgs := paginateQuery(childBaseQuery, []any{treeID, parentLft, parentRgt}, p)
+	rows, err := r.db.Query(ctx, childQuery, childArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list children: %w", err)
 	}
@@ -264,7 +249,7 @@ func (r *entityRepository) ListChildren(ctx context.Context, parentID uuid.UUID,
 		entities = append(entities, entity)
 	}
 
-	return &Page[models.Entity]{Data: entities, Total: total, Limit: p.Limit, Offset: p.Offset}, nil
+	return pageResult(entities, total, p), nil
 }
 
 // Move repositions an entity (and its subtree) within the same tree.

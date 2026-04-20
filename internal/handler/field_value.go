@@ -69,7 +69,8 @@ func (h *FieldValueHandler) ListByEntity(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	page, err := h.fieldValueSvc.ListByEntity(r.Context(), entityID, ParsePagination(r))
+	p := ParsePagination(r)
+	page, err := h.fieldValueSvc.ListByEntity(r.Context(), entityID, &p)
 	if err != nil {
 		ServiceError(w, err)
 		return

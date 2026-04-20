@@ -166,7 +166,7 @@ func TestEntityRepository_Move(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		children, err := repo.ListChildren(ctx, root.ID, repository.Pagination{Limit: 10})
+		children, err := repo.ListChildren(ctx, root.ID, &repository.Pagination{Limit: 10})
 		if err != nil {
 			t.Fatalf("unexpected error listing children: %v", err)
 		}
@@ -192,7 +192,7 @@ func TestEntityRepository_Move(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		children, err := repo.ListChildren(ctx, root.ID, repository.Pagination{Limit: 10})
+		children, err := repo.ListChildren(ctx, root.ID, &repository.Pagination{Limit: 10})
 		if err != nil {
 			t.Fatalf("unexpected error listing children: %v", err)
 		}
@@ -217,7 +217,7 @@ func TestEntityRepository_Move(t *testing.T) {
 		}
 
 		// Root's children should now be b, a
-		children, err := repo.ListChildren(ctx, root.ID, repository.Pagination{Limit: 10})
+		children, err := repo.ListChildren(ctx, root.ID, &repository.Pagination{Limit: 10})
 		if err != nil {
 			t.Fatalf("unexpected error listing children: %v", err)
 		}
@@ -226,7 +226,7 @@ func TestEntityRepository_Move(t *testing.T) {
 		}
 
 		// a's children should still be a1, a2 in order
-		aChildren, err := repo.ListChildren(ctx, a.ID, repository.Pagination{Limit: 10})
+		aChildren, err := repo.ListChildren(ctx, a.ID, &repository.Pagination{Limit: 10})
 		if err != nil {
 			t.Fatalf("unexpected error listing a's children: %v", err)
 		}
@@ -263,7 +263,7 @@ func TestEntityRepository_MoveRoot(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		page, err := repo.ListByComposite(ctx, composite.ID, repository.Pagination{Limit: 10, Offset: 0})
+		page, err := repo.ListByComposite(ctx, composite.ID, &repository.Pagination{Limit: 10, Offset: 0})
 		if err != nil {
 			t.Fatalf("unexpected error listing: %v", err)
 		}
@@ -287,7 +287,7 @@ func TestEntityRepository_MoveRoot(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		page, err := repo.ListByComposite(ctx, composite.ID, repository.Pagination{Limit: 10, Offset: 0})
+		page, err := repo.ListByComposite(ctx, composite.ID, &repository.Pagination{Limit: 10, Offset: 0})
 		if err != nil {
 			t.Fatalf("unexpected error listing: %v", err)
 		}

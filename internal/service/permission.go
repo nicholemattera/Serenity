@@ -14,7 +14,7 @@ import (
 type PermissionService interface {
 	Create(ctx context.Context, permission *models.Permission) (*models.Permission, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Permission, error)
-	ListByRole(ctx context.Context, roleID uuid.UUID, p repository.Pagination) (*repository.Page[models.Permission], error)
+	ListByRole(ctx context.Context, roleID uuid.UUID, p *repository.Pagination) (*repository.Page[models.Permission], error)
 	Update(ctx context.Context, permission *models.Permission) (*models.Permission, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 	// CanRead returns true if the given role (nil = unauthenticated) may read entities in the composite.
@@ -54,7 +54,7 @@ func (s *permissionService) GetByID(ctx context.Context, id uuid.UUID) (*models.
 	return p, nil
 }
 
-func (s *permissionService) ListByRole(ctx context.Context, roleID uuid.UUID, p repository.Pagination) (*repository.Page[models.Permission], error) {
+func (s *permissionService) ListByRole(ctx context.Context, roleID uuid.UUID, p *repository.Pagination) (*repository.Page[models.Permission], error) {
 	return s.repo.ListByRole(ctx, roleID, p)
 }
 

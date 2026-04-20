@@ -16,7 +16,7 @@ import (
 type UserService interface {
 	Create(ctx context.Context, user *models.User, plainPassword string) (*models.User, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
-	List(ctx context.Context, p repository.Pagination) (*repository.Page[models.User], error)
+	List(ctx context.Context, p *repository.Pagination) (*repository.Page[models.User], error)
 	Update(ctx context.Context, user *models.User) (*models.User, error)
 	UpdatePassword(ctx context.Context, id uuid.UUID, plainPassword string, updatedBy uuid.UUID) error
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
@@ -56,7 +56,7 @@ func (s *userService) GetByID(ctx context.Context, id uuid.UUID) (*models.User, 
 	return user, nil
 }
 
-func (s *userService) List(ctx context.Context, p repository.Pagination) (*repository.Page[models.User], error) {
+func (s *userService) List(ctx context.Context, p *repository.Pagination) (*repository.Page[models.User], error) {
 	return s.repo.List(ctx, p)
 }
 

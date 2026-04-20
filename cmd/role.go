@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/nicholemattera/serenity/internal/models"
-	"github.com/nicholemattera/serenity/internal/repository"
 )
 
 func newRoleCmd() *cobra.Command {
@@ -19,7 +18,7 @@ func newRoleCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			page, err := a.roleSvc.List(cmd.Context(), repository.Pagination{Limit: 100})
+			page, err := a.roleSvc.List(cmd.Context(), nil)
 			if err != nil {
 				return err
 			}

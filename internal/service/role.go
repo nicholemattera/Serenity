@@ -15,7 +15,7 @@ import (
 type RoleService interface {
 	Create(ctx context.Context, role *models.Role) (*models.Role, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Role, error)
-	List(ctx context.Context, p repository.Pagination) (*repository.Page[models.Role], error)
+	List(ctx context.Context, p *repository.Pagination) (*repository.Page[models.Role], error)
 	Update(ctx context.Context, role *models.Role) (*models.Role, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
@@ -47,7 +47,7 @@ func (s *roleService) GetByID(ctx context.Context, id uuid.UUID) (*models.Role, 
 	return role, nil
 }
 
-func (s *roleService) List(ctx context.Context, p repository.Pagination) (*repository.Page[models.Role], error) {
+func (s *roleService) List(ctx context.Context, p *repository.Pagination) (*repository.Page[models.Role], error) {
 	return s.repo.List(ctx, p)
 }
 

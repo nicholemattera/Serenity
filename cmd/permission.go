@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/nicholemattera/serenity/internal/models"
-	"github.com/nicholemattera/serenity/internal/repository"
 )
 
 func newPermissionCmd() *cobra.Command {
@@ -28,7 +27,7 @@ func newPermissionCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("invalid role-id: %w", err)
 			}
-			page, err := a.permissionSvc.ListByRole(cmd.Context(), rid, repository.Pagination{Limit: 100})
+			page, err := a.permissionSvc.ListByRole(cmd.Context(), rid, nil)
 			if err != nil {
 				return err
 			}

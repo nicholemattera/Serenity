@@ -22,8 +22,8 @@ type EntityService interface {
 	Create(ctx context.Context, entity *models.Entity, parentID *uuid.UUID, afterID *uuid.UUID) (*models.Entity, error)
 	GetByID(ctx context.Context, id uuid.UUID, enrich bool) (*EntityDetail, error)
 	GetBySlug(ctx context.Context, compositeID uuid.UUID, slug string, enrich bool) (*EntityDetail, error)
-	ListByComposite(ctx context.Context, compositeID uuid.UUID, p repository.Pagination, enrich bool) (*repository.Page[EntityDetail], error)
-	ListChildren(ctx context.Context, parentID uuid.UUID, p repository.Pagination, enrich bool) (*repository.Page[EntityDetail], error)
+	ListByComposite(ctx context.Context, compositeID uuid.UUID, p *repository.Pagination, enrich bool) (*repository.Page[EntityDetail], error)
+	ListChildren(ctx context.Context, parentID uuid.UUID, p *repository.Pagination, enrich bool) (*repository.Page[EntityDetail], error)
 	Move(ctx context.Context, id uuid.UUID, parentID *uuid.UUID, afterID *uuid.UUID) error
 	MoveRoot(ctx context.Context, id uuid.UUID, afterID *uuid.UUID) error
 	Update(ctx context.Context, entity *models.Entity, enrich bool) (*EntityDetail, error)
@@ -40,7 +40,7 @@ func NewEntityService(entityRepo repository.EntityRepository, fieldValueSvc Fiel
 }
 
 func (s *entityService) enrich(ctx context.Context, entity *models.Entity) (*EntityDetail, error) {
-	fvs, err := s.fieldValueSvc.ListByEntity(ctx, entity.ID, repository.Pagination{Limit: 1000})
+	fvs, err := s.fieldValueSvc.ListByEntity(ctx, entity.ID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load field values: %w", err)
 	}
@@ -93,7 +93,7 @@ func (s *entityService) GetBySlug(ctx context.Context, compositeID uuid.UUID, sl
 	return s.enrich(ctx, entity)
 }
 
-func (s *entityService) ListByComposite(ctx context.Context, compositeID uuid.UUID, p repository.Pagination, enrich bool) (*repository.Page[EntityDetail], error) {
+func (s *entityService) ListByComposite(ctx context.Context, compositeID uuid.UUID, p *repository.Pagination, enrich bool) (*repository.Page[EntityDetail], error) {
 	entities, err := s.entityRepo.ListByComposite(ctx, compositeID, p)
 	if err != nil {
 		return nil, err
@@ -118,7 +118,7 @@ func (s *entityService) ListByComposite(ctx context.Context, compositeID uuid.UU
 	return &repository.Page[EntityDetail]{Data: details, Total: entities.Total, Limit: entities.Limit, Offset: entities.Offset}, nil
 }
 
-func (s *entityService) ListChildren(ctx context.Context, parentID uuid.UUID, p repository.Pagination, enrich bool) (*repository.Page[EntityDetail], error) {
+func (s *entityService) ListChildren(ctx context.Context, parentID uuid.UUID, p *repository.Pagination, enrich bool) (*repository.Page[EntityDetail], error) {
 	entities, err := s.entityRepo.ListChildren(ctx, parentID, p)
 	if err != nil {
 		return nil, err

@@ -16,7 +16,7 @@ type PermissionRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Permission, error)
 	GetByRoleAndComposite(ctx context.Context, roleID, compositeID uuid.UUID) (*models.Permission, error)
 	GetByRoleAndResource(ctx context.Context, roleID uuid.UUID, resourceType models.ResourceType) (*models.Permission, error)
-	ListByRole(ctx context.Context, roleID uuid.UUID, p Pagination) (*Page[models.Permission], error)
+	ListByRole(ctx context.Context, roleID uuid.UUID, p *Pagination) (*Page[models.Permission], error)
 	Update(ctx context.Context, permission *models.Permission) (*models.Permission, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
@@ -101,20 +101,15 @@ func (r *permissionRepository) GetByRoleAndResource(ctx context.Context, roleID 
 	return permission, nil
 }
 
-func (r *permissionRepository) ListByRole(ctx context.Context, roleID uuid.UUID, p Pagination) (*Page[models.Permission], error) {
+func (r *permissionRepository) ListByRole(ctx context.Context, roleID uuid.UUID, p *Pagination) (*Page[models.Permission], error) {
 	var total int
 	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM permissions WHERE role_id = $1 AND deleted_at IS NULL`, roleID).Scan(&total)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count permissions: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, `
-		SELECT `+permissionColumns+`
-		FROM permissions
-		WHERE role_id = $1 AND deleted_at IS NULL
-		ORDER BY created_at ASC
-		LIMIT $2 OFFSET $3
-	`, roleID, p.Limit, p.Offset)
+	query, args := paginateQuery(`SELECT `+permissionColumns+` FROM permissions WHERE role_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC`, []any{roleID}, p)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list permissions: %w", err)
 	}
@@ -129,7 +124,7 @@ func (r *permissionRepository) ListByRole(ctx context.Context, roleID uuid.UUID,
 		permissions = append(permissions, permission)
 	}
 
-	return &Page[models.Permission]{Data: permissions, Total: total, Limit: p.Limit, Offset: p.Offset}, nil
+	return pageResult(permissions, total, p), nil
 }
 
 func (r *permissionRepository) Update(ctx context.Context, permission *models.Permission) (*models.Permission, error) {

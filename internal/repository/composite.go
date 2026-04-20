@@ -15,7 +15,7 @@ type CompositeRepository interface {
 	Create(ctx context.Context, composite *models.Composite) (*models.Composite, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Composite, error)
 	GetBySlug(ctx context.Context, slug string) (*models.Composite, error)
-	List(ctx context.Context, p Pagination) (*Page[models.Composite], error)
+	List(ctx context.Context, p *Pagination) (*Page[models.Composite], error)
 	Update(ctx context.Context, composite *models.Composite) (*models.Composite, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
@@ -85,20 +85,15 @@ func (r *compositeRepository) GetBySlug(ctx context.Context, slug string) (*mode
 	return composite, nil
 }
 
-func (r *compositeRepository) List(ctx context.Context, p Pagination) (*Page[models.Composite], error) {
+func (r *compositeRepository) List(ctx context.Context, p *Pagination) (*Page[models.Composite], error) {
 	var total int
 	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM composites WHERE deleted_at IS NULL`).Scan(&total)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count composites: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, `
-		SELECT `+compositeColumns+`
-		FROM composites
-		WHERE deleted_at IS NULL
-		ORDER BY name ASC
-		LIMIT $1 OFFSET $2
-	`, p.Limit, p.Offset)
+	query, args := paginateQuery(`SELECT `+compositeColumns+` FROM composites WHERE deleted_at IS NULL ORDER BY name ASC`, nil, p)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list composites: %w", err)
 	}
@@ -113,7 +108,7 @@ func (r *compositeRepository) List(ctx context.Context, p Pagination) (*Page[mod
 		composites = append(composites, composite)
 	}
 
-	return &Page[models.Composite]{Data: composites, Total: total, Limit: p.Limit, Offset: p.Offset}, nil
+	return pageResult(composites, total, p), nil
 }
 
 func (r *compositeRepository) Update(ctx context.Context, composite *models.Composite) (*models.Composite, error) {

@@ -22,7 +22,7 @@ type CompositeService interface {
 	Create(ctx context.Context, composite *models.Composite) (*models.Composite, error)
 	GetByID(ctx context.Context, id uuid.UUID, enrich bool) (*CompositeDetail, error)
 	GetBySlug(ctx context.Context, slug string, enrich bool) (*CompositeDetail, error)
-	List(ctx context.Context, p repository.Pagination, enrich bool) (*repository.Page[CompositeDetail], error)
+	List(ctx context.Context, p *repository.Pagination, enrich bool) (*repository.Page[CompositeDetail], error)
 	Update(ctx context.Context, composite *models.Composite, enrich bool) (*CompositeDetail, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
@@ -90,7 +90,7 @@ func (s *compositeService) GetBySlug(ctx context.Context, slug string, enrich bo
 	return s.enrich(ctx, composite)
 }
 
-func (s *compositeService) List(ctx context.Context, p repository.Pagination, enrich bool) (*repository.Page[CompositeDetail], error) {
+func (s *compositeService) List(ctx context.Context, p *repository.Pagination, enrich bool) (*repository.Page[CompositeDetail], error) {
 	composites, err := s.compositeRepo.List(ctx, p)
 	if err != nil {
 		return nil, err

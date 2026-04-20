@@ -15,7 +15,7 @@ type FieldValueRepository interface {
 	Create(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.FieldValue, error)
 	GetByEntityAndField(ctx context.Context, entityID, fieldID uuid.UUID) (*models.FieldValue, error)
-	ListByEntity(ctx context.Context, entityID uuid.UUID, p Pagination) (*Page[models.FieldValue], error)
+	ListByEntity(ctx context.Context, entityID uuid.UUID, p *Pagination) (*Page[models.FieldValue], error)
 	Update(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
@@ -84,20 +84,15 @@ func (r *fieldValueRepository) GetByEntityAndField(ctx context.Context, entityID
 	return fv, nil
 }
 
-func (r *fieldValueRepository) ListByEntity(ctx context.Context, entityID uuid.UUID, p Pagination) (*Page[models.FieldValue], error) {
+func (r *fieldValueRepository) ListByEntity(ctx context.Context, entityID uuid.UUID, p *Pagination) (*Page[models.FieldValue], error) {
 	var total int
 	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM field_values WHERE entity_id = $1 AND deleted_at IS NULL`, entityID).Scan(&total)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count field values: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, `
-		SELECT `+fieldValueColumns+`
-		FROM field_values
-		WHERE entity_id = $1 AND deleted_at IS NULL
-		ORDER BY created_at ASC
-		LIMIT $2 OFFSET $3
-	`, entityID, p.Limit, p.Offset)
+	query, args := paginateQuery(`SELECT `+fieldValueColumns+` FROM field_values WHERE entity_id = $1 AND deleted_at IS NULL ORDER BY created_at ASC`, []any{entityID}, p)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list field values: %w", err)
 	}
@@ -112,7 +107,7 @@ func (r *fieldValueRepository) ListByEntity(ctx context.Context, entityID uuid.U
 		values = append(values, fv)
 	}
 
-	return &Page[models.FieldValue]{Data: values, Total: total, Limit: p.Limit, Offset: p.Offset}, nil
+	return pageResult(values, total, p), nil
 }
 
 func (r *fieldValueRepository) Update(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error) {

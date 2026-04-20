@@ -15,7 +15,7 @@ type UserRepository interface {
 	Create(ctx context.Context, user *models.User) (*models.User, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	GetByEmail(ctx context.Context, email string) (*models.User, error)
-	List(ctx context.Context, p Pagination) (*Page[models.User], error)
+	List(ctx context.Context, p *Pagination) (*Page[models.User], error)
 	Update(ctx context.Context, user *models.User) (*models.User, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
@@ -84,21 +84,15 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*models.
 	return user, nil
 }
 
-func (r *userRepository) List(ctx context.Context, p Pagination) (*Page[models.User], error) {
+func (r *userRepository) List(ctx context.Context, p *Pagination) (*Page[models.User], error) {
 	var total int
 	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL`).Scan(&total)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count users: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, `
-		SELECT id, first_name, last_name, email, password_hash, role_id,
-		       created_at, updated_at, deleted_at, created_by, updated_by, deleted_by
-		FROM users
-		WHERE deleted_at IS NULL
-		ORDER BY created_at ASC
-		LIMIT $1 OFFSET $2
-	`, p.Limit, p.Offset)
+	query, args := paginateQuery(`SELECT id, first_name, last_name, email, password_hash, role_id, created_at, updated_at, deleted_at, created_by, updated_by, deleted_by FROM users WHERE deleted_at IS NULL ORDER BY created_at ASC`, nil, p)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
@@ -117,7 +111,7 @@ func (r *userRepository) List(ctx context.Context, p Pagination) (*Page[models.U
 		users = append(users, user)
 	}
 
-	return &Page[models.User]{Data: users, Total: total, Limit: p.Limit, Offset: p.Offset}, nil
+	return pageResult(users, total, p), nil
 }
 
 func (r *userRepository) Update(ctx context.Context, user *models.User) (*models.User, error) {

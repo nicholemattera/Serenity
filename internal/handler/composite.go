@@ -38,7 +38,8 @@ func (h *CompositeHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	page, err := h.compositeSvc.List(r.Context(), ParsePagination(r), ParseEnrich(r))
+	p := ParsePagination(r)
+	page, err := h.compositeSvc.List(r.Context(), &p, ParseEnrich(r))
 	if err != nil {
 		ServiceError(w, err)
 		return

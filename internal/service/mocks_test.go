@@ -31,7 +31,7 @@ func (m *mockUserRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.User,
 func (m *mockUserRepo) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	return m.getByEmail(ctx, email)
 }
-func (m *mockUserRepo) List(ctx context.Context, p repository.Pagination) (*repository.Page[models.User], error) {
+func (m *mockUserRepo) List(ctx context.Context, p *repository.Pagination) (*repository.Page[models.User], error) {
 	return nil, nil
 }
 func (m *mockUserRepo) Update(ctx context.Context, user *models.User) (*models.User, error) {
@@ -56,7 +56,7 @@ func (m *mockRoleRepo) Create(ctx context.Context, role *models.Role) (*models.R
 func (m *mockRoleRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Role, error) {
 	return m.getByID(ctx, id)
 }
-func (m *mockRoleRepo) List(ctx context.Context, p repository.Pagination) (*repository.Page[models.Role], error) {
+func (m *mockRoleRepo) List(ctx context.Context, p *repository.Pagination) (*repository.Page[models.Role], error) {
 	return nil, nil
 }
 func (m *mockRoleRepo) Update(ctx context.Context, role *models.Role) (*models.Role, error) {
@@ -88,7 +88,7 @@ func (m *mockPermissionRepo) GetByRoleAndResource(ctx context.Context, roleID uu
 	}
 	return nil, pgx.ErrNoRows
 }
-func (m *mockPermissionRepo) ListByRole(ctx context.Context, roleID uuid.UUID, p repository.Pagination) (*repository.Page[models.Permission], error) {
+func (m *mockPermissionRepo) ListByRole(ctx context.Context, roleID uuid.UUID, p *repository.Pagination) (*repository.Page[models.Permission], error) {
 	return nil, nil
 }
 func (m *mockPermissionRepo) Update(ctx context.Context, p *models.Permission) (*models.Permission, error) {
@@ -143,7 +143,7 @@ func (m *mockFieldValueRepo) GetByID(ctx context.Context, id uuid.UUID) (*models
 func (m *mockFieldValueRepo) GetByEntityAndField(ctx context.Context, entityID, fieldID uuid.UUID) (*models.FieldValue, error) {
 	return m.getByEntityAndField(ctx, entityID, fieldID)
 }
-func (m *mockFieldValueRepo) ListByEntity(ctx context.Context, entityID uuid.UUID, p repository.Pagination) (*repository.Page[models.FieldValue], error) {
+func (m *mockFieldValueRepo) ListByEntity(ctx context.Context, entityID uuid.UUID, p *repository.Pagination) (*repository.Page[models.FieldValue], error) {
 	return &repository.Page[models.FieldValue]{Data: []models.FieldValue{}}, nil
 }
 func (m *mockFieldValueRepo) Update(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error) {
