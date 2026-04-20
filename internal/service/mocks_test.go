@@ -113,7 +113,10 @@ func (m *mockFieldService) GetByID(ctx context.Context, id uuid.UUID) (*models.F
 	}
 	return &models.Field{ID: id, Type: models.FieldTypeShortText}, nil
 }
-func (m *mockFieldService) ListByComposite(ctx context.Context, compositeID uuid.UUID, p repository.Pagination) (*repository.Page[models.Field], error) {
+func (m *mockFieldService) GetBySlug(ctx context.Context, compositeID uuid.UUID, slug string) (*models.Field, error) {
+	return nil, nil
+}
+func (m *mockFieldService) ListByComposite(ctx context.Context, compositeID uuid.UUID, p *repository.Pagination) (*repository.Page[models.Field], error) {
 	return nil, nil
 }
 func (m *mockFieldService) Update(ctx context.Context, field *models.Field) (*models.Field, error) {

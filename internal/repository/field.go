@@ -14,7 +14,8 @@ import (
 type FieldRepository interface {
 	Create(ctx context.Context, field *models.Field) (*models.Field, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Field, error)
-	ListByComposite(ctx context.Context, compositeID uuid.UUID, p Pagination) (*Page[models.Field], error)
+	GetBySlug(ctx context.Context, compositeID uuid.UUID, slug string) (*models.Field, error)
+	ListByComposite(ctx context.Context, compositeID uuid.UUID, p *Pagination) (*Page[models.Field], error)
 	Update(ctx context.Context, field *models.Field) (*models.Field, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
@@ -71,20 +72,33 @@ func (r *fieldRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Fi
 	return field, nil
 }
 
-func (r *fieldRepository) ListByComposite(ctx context.Context, compositeID uuid.UUID, p Pagination) (*Page[models.Field], error) {
+func (r *fieldRepository) GetBySlug(ctx context.Context, compositeID uuid.UUID, slug string) (*models.Field, error) {
+	field := &models.Field{}
+	err := scanField(r.db.QueryRow(ctx, `
+		SELECT `+fieldColumns+`
+		FROM fields
+		WHERE composite_id = $1 AND slug = $2 AND deleted_at IS NULL
+	`, compositeID, slug), field)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get field: %w", err)
+	}
+	return field, nil
+}
+
+func (r *fieldRepository) ListByComposite(ctx context.Context, compositeID uuid.UUID, p *Pagination) (*Page[models.Field], error) {
 	var total int
 	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM fields WHERE composite_id = $1 AND deleted_at IS NULL`, compositeID).Scan(&total)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count fields: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, `
-		SELECT `+fieldColumns+`
-		FROM fields
-		WHERE composite_id = $1 AND deleted_at IS NULL
-		ORDER BY position ASC
-		LIMIT $2 OFFSET $3
-	`, compositeID, p.Limit, p.Offset)
+	query := `SELECT ` + fieldColumns + ` FROM fields WHERE composite_id = $1 AND deleted_at IS NULL ORDER BY position ASC`
+	args := []any{compositeID}
+	if p != nil {
+		query += ` LIMIT $2 OFFSET $3`
+		args = append(args, p.Limit, p.Offset)
+	}
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list fields: %w", err)
 	}
@@ -99,7 +113,12 @@ func (r *fieldRepository) ListByComposite(ctx context.Context, compositeID uuid.
 		fields = append(fields, field)
 	}
 
-	return &Page[models.Field]{Data: fields, Total: total, Limit: p.Limit, Offset: p.Offset}, nil
+	page := &Page[models.Field]{Data: fields, Total: total}
+	if p != nil {
+		page.Limit = p.Limit
+		page.Offset = p.Offset
+	}
+	return page, nil
 }
 
 func (r *fieldRepository) Update(ctx context.Context, field *models.Field) (*models.Field, error) {

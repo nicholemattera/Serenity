@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/nicholemattera/serenity/internal/models"
-	"github.com/nicholemattera/serenity/internal/repository"
 )
 
 func newFieldCmd() *cobra.Command {
@@ -28,7 +27,7 @@ func newFieldCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			page, err := a.fieldSvc.ListByComposite(cmd.Context(), cid, repository.Pagination{Limit: 100})
+			page, err := a.fieldSvc.ListByComposite(cmd.Context(), cid, nil)
 			if err != nil {
 				return err
 			}

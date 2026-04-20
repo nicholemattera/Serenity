@@ -32,7 +32,7 @@ func newServiceCmd() *cobra.Command {
 			userHandler := handler.NewUserHandler(a.userSvc, a.permissionSvc)
 			compositeHandler := handler.NewCompositeHandler(a.compositeSvc, a.permissionSvc)
 			fieldHandler := handler.NewFieldHandler(a.fieldSvc, a.permissionSvc)
-			entityHandler := handler.NewEntityHandler(a.entitySvc, a.compositeSvc, a.permissionSvc)
+			entityHandler := handler.NewEntityHandler(a.entitySvc, a.fieldSvc, a.fieldValueSvc, a.compositeSvc, a.permissionSvc)
 			fieldValueHandler := handler.NewFieldValueHandler(a.fieldValueSvc, a.entitySvc, a.compositeSvc, a.permissionSvc)
 
 			r := chi.NewRouter()

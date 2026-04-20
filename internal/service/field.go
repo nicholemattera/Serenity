@@ -15,7 +15,8 @@ import (
 type FieldService interface {
 	Create(ctx context.Context, field *models.Field) (*models.Field, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Field, error)
-	ListByComposite(ctx context.Context, compositeID uuid.UUID, p repository.Pagination) (*repository.Page[models.Field], error)
+	GetBySlug(ctx context.Context, compositeID uuid.UUID, slug string) (*models.Field, error)
+	ListByComposite(ctx context.Context, compositeID uuid.UUID, p *repository.Pagination) (*repository.Page[models.Field], error)
 	Update(ctx context.Context, field *models.Field) (*models.Field, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
@@ -47,7 +48,18 @@ func (s *fieldService) GetByID(ctx context.Context, id uuid.UUID) (*models.Field
 	return field, nil
 }
 
-func (s *fieldService) ListByComposite(ctx context.Context, compositeID uuid.UUID, p repository.Pagination) (*repository.Page[models.Field], error) {
+func (s *fieldService) GetBySlug(ctx context.Context, compositeID uuid.UUID, slug string) (*models.Field, error) {
+	field, err := s.repo.GetBySlug(ctx, compositeID, slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return field, nil
+}
+
+func (s *fieldService) ListByComposite(ctx context.Context, compositeID uuid.UUID, p *repository.Pagination) (*repository.Page[models.Field], error) {
 	return s.repo.ListByComposite(ctx, compositeID, p)
 }
 

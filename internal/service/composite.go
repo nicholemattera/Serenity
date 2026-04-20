@@ -37,7 +37,7 @@ func NewCompositeService(compositeRepo repository.CompositeRepository, fieldSvc 
 }
 
 func (s *compositeService) enrich(ctx context.Context, composite *models.Composite) (*CompositeDetail, error) {
-	fields, err := s.fieldSvc.ListByComposite(ctx, composite.ID, repository.Pagination{Limit: 1000})
+	fields, err := s.fieldSvc.ListByComposite(ctx, composite.ID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fields: %w", err)
 	}

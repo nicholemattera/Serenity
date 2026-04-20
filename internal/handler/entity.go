@@ -13,12 +13,14 @@ import (
 
 type EntityHandler struct {
 	entitySvc     service.EntityService
+	fieldSvc      service.FieldService
+	fieldValueSvc service.FieldValueService
 	compositeSvc  service.CompositeService
 	permissionSvc service.PermissionService
 }
 
-func NewEntityHandler(entitySvc service.EntityService, compositeSvc service.CompositeService, permissionSvc service.PermissionService) *EntityHandler {
-	return &EntityHandler{entitySvc: entitySvc, compositeSvc: compositeSvc, permissionSvc: permissionSvc}
+func NewEntityHandler(entitySvc service.EntityService, fieldSvc service.FieldService, fieldValueSvc service.FieldValueService, compositeSvc service.CompositeService, permissionSvc service.PermissionService) *EntityHandler {
+	return &EntityHandler{entitySvc: entitySvc, fieldSvc: fieldSvc, fieldValueSvc: fieldValueSvc, compositeSvc: compositeSvc, permissionSvc: permissionSvc}
 }
 
 func (h *EntityHandler) callerRoleID(r *http.Request) *uuid.UUID {
@@ -115,11 +117,12 @@ func (h *EntityHandler) ListChildren(w http.ResponseWriter, r *http.Request) {
 }
 
 type createEntityRequest struct {
-	CompositeID uuid.UUID  `json:"composite_id"`
-	Name        string     `json:"name"`
-	Slug        string     `json:"slug"`
-	ParentID    *uuid.UUID `json:"parent_id"`
-	AfterID     *uuid.UUID `json:"after_id"`
+	CompositeID uuid.UUID         `json:"composite_id"`
+	Name        string            `json:"name"`
+	Slug        string            `json:"slug"`
+	ParentID    *uuid.UUID        `json:"parent_id"`
+	AfterID     *uuid.UUID        `json:"after_id"`
+	FieldValues map[string]string `json:"field_values"`
 }
 
 func (h *EntityHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -129,8 +132,24 @@ func (h *EntityHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ensure the use has write access
 	if _, ok := h.requireCompositeWrite(w, r, req.CompositeID); !ok {
 		return
+	}
+
+	// Ensure all required fields are provided in the request
+	fields, err := h.fieldSvc.ListByComposite(r.Context(), req.CompositeID, nil)
+	if err != nil {
+		ServiceError(w, err)
+		return
+	}
+	for _, field := range fields.Data {
+		if field.Required {
+			if v, ok := req.FieldValues[field.Slug]; !ok || v == "" {
+				Error(w, http.StatusBadRequest, "missing required field: "+field.Slug)
+				return
+			}
+		}
 	}
 
 	entity := &models.Entity{
@@ -138,16 +157,41 @@ func (h *EntityHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Name:        req.Name,
 		Slug:        req.Slug,
 	}
-	if claims := GetClaims(r); claims != nil {
+	claims := GetClaims(r)
+	if claims != nil {
 		entity.CreatedBy = &claims.UserID
 	}
 
+	// Create the Entity
 	result, err := h.entitySvc.Create(r.Context(), entity, req.ParentID, req.AfterID)
 	if err != nil {
 		ServiceError(w, err)
 		return
 	}
 
+	// Create all of the FieldValues for the Entity
+	for slug, value := range req.FieldValues {
+		field, err := h.fieldSvc.GetBySlug(r.Context(), req.CompositeID, slug)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		fv := &models.FieldValue{
+			EntityID: result.ID,
+			FieldID:  field.ID,
+			Value:    value,
+		}
+		if claims != nil {
+			fv.CreatedBy = &claims.UserID
+			fv.UpdatedBy = &claims.UserID
+		}
+		if _, err := h.fieldValueSvc.Set(r.Context(), fv); err != nil {
+			ServiceError(w, err)
+			return
+		}
+	}
+
+	// Return the newly created Entity
 	JSON(w, http.StatusCreated, result)
 }
 
@@ -202,8 +246,9 @@ func (h *EntityHandler) GetBySlug(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateEntityRequest struct {
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+	Name        string            `json:"name"`
+	Slug        string            `json:"slug"`
+	FieldValues map[string]string `json:"field_values"`
 }
 
 func (h *EntityHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -229,13 +274,29 @@ func (h *EntityHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ensure all required fields are provided in the request
+	fields, err := h.fieldSvc.ListByComposite(r.Context(), existing.CompositeID, nil)
+	if err != nil {
+		ServiceError(w, err)
+		return
+	}
+	for _, field := range fields.Data {
+		if field.Required {
+			if v, ok := req.FieldValues[field.Slug]; !ok || v == "" {
+				Error(w, http.StatusBadRequest, "missing required field: "+field.Slug)
+				return
+			}
+		}
+	}
+
 	entity := &models.Entity{
 		ID:          id,
 		CompositeID: existing.CompositeID,
 		Name:        req.Name,
 		Slug:        req.Slug,
 	}
-	if claims := GetClaims(r); claims != nil {
+	claims := GetClaims(r)
+	if claims != nil {
 		entity.UpdatedBy = &claims.UserID
 	}
 
@@ -243,6 +304,28 @@ func (h *EntityHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		ServiceError(w, err)
 		return
+	}
+
+	// Create or update all of the FieldValues for the Entity
+	for slug, value := range req.FieldValues {
+		field, err := h.fieldSvc.GetBySlug(r.Context(), existing.CompositeID, slug)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		fv := &models.FieldValue{
+			EntityID: id,
+			FieldID:  field.ID,
+			Value:    value,
+		}
+		if claims != nil {
+			fv.CreatedBy = &claims.UserID
+			fv.UpdatedBy = &claims.UserID
+		}
+		if _, err := h.fieldValueSvc.Set(r.Context(), fv); err != nil {
+			ServiceError(w, err)
+			return
+		}
 	}
 
 	JSON(w, http.StatusOK, result)

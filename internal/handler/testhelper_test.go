@@ -101,7 +101,7 @@ func newTestServer(t *testing.T) *testServer {
 	userHandler := handler.NewUserHandler(userSvc, permissionSvc)
 	compositeHandler := handler.NewCompositeHandler(compositeSvc, permissionSvc)
 	fieldHandler := handler.NewFieldHandler(fieldSvc, permissionSvc)
-	entityHandler := handler.NewEntityHandler(entitySvc, compositeSvc, permissionSvc)
+	entityHandler := handler.NewEntityHandler(entitySvc, fieldSvc, fieldValueSvc, compositeSvc, permissionSvc)
 	fieldValueHandler := handler.NewFieldValueHandler(fieldValueSvc, entitySvc, compositeSvc, permissionSvc)
 
 	r := chi.NewRouter()

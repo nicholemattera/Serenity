@@ -222,6 +222,153 @@ func TestEntity_DefaultReadWrite(t *testing.T) {
 	})
 }
 
+func TestEntity_FieldValues(t *testing.T) {
+	srv := newTestServer(t)
+	token, compositeID := setupEntityAccess(t, srv, true, true)
+
+	// Create two fields on the composite.
+	titleRR := srv.do(http.MethodPost, "/fields", map[string]any{
+		"composite_id": compositeID,
+		"name":         "Title",
+		"slug":         "title",
+		"type":         "short_text",
+		"position":     1,
+	}, token)
+	assertStatus(t, titleRR, http.StatusCreated)
+
+	bodyRR := srv.do(http.MethodPost, "/fields", map[string]any{
+		"composite_id": compositeID,
+		"name":         "Body",
+		"slug":         "body",
+		"type":         "long_text",
+		"position":     2,
+	}, token)
+	assertStatus(t, bodyRR, http.StatusCreated)
+
+	var entityID string
+
+	t.Run("create entity with field values persists values", func(t *testing.T) {
+		rr := srv.do(http.MethodPost, "/entities", map[string]any{
+			"composite_id": compositeID,
+			"name":         "My Post",
+			"slug":         "my-post",
+			"field_values": map[string]string{
+				"title": "Hello World",
+				"body":  "Some content here.",
+			},
+		}, token)
+		assertStatus(t, rr, http.StatusCreated)
+		var resp map[string]any
+		decode(t, rr, &resp)
+		entityID = resp["id"].(string)
+
+		enrichRR := srv.do(http.MethodGet, "/entities/"+entityID+"?enrich=true", nil, token)
+		assertStatus(t, enrichRR, http.StatusOK)
+		var enriched map[string]any
+		decode(t, enrichRR, &enriched)
+		fvs := enriched["field_values"].([]any)
+		if len(fvs) != 2 {
+			t.Fatalf("expected 2 field values, got %d", len(fvs))
+		}
+		for _, raw := range fvs {
+			fv := raw.(map[string]any)
+			val := fv["value"].(string)
+			if val != "Hello World" && val != "Some content here." {
+				t.Errorf("unexpected field value: %s", val)
+			}
+		}
+	})
+
+	t.Run("update entity with field values updates values", func(t *testing.T) {
+		rr := srv.do(http.MethodPut, "/entities/"+entityID, map[string]any{
+			"name": "My Post",
+			"slug": "my-post",
+			"field_values": map[string]string{
+				"title": "Updated Title",
+				"body":  "Updated content.",
+			},
+		}, token)
+		assertStatus(t, rr, http.StatusOK)
+
+		enrichRR := srv.do(http.MethodGet, "/entities/"+entityID+"?enrich=true", nil, token)
+		assertStatus(t, enrichRR, http.StatusOK)
+		var enriched map[string]any
+		decode(t, enrichRR, &enriched)
+		fvs := enriched["field_values"].([]any)
+		if len(fvs) != 2 {
+			t.Fatalf("expected 2 field values, got %d", len(fvs))
+		}
+		for _, raw := range fvs {
+			fv := raw.(map[string]any)
+			val := fv["value"].(string)
+			if val != "Updated Title" && val != "Updated content." {
+				t.Errorf("unexpected field value after update: %s", val)
+			}
+		}
+	})
+}
+
+func TestEntity_RequiredFields(t *testing.T) {
+	srv := newTestServer(t)
+	token, compositeID := setupEntityAccess(t, srv, true, true)
+
+	// Create a required field on the composite.
+	rr := srv.do(http.MethodPost, "/fields", map[string]any{
+		"composite_id": compositeID,
+		"name":         "Title",
+		"slug":         "title",
+		"type":         "short_text",
+		"position":     1,
+		"required":     true,
+	}, token)
+	assertStatus(t, rr, http.StatusCreated)
+
+	t.Run("create without required field returns 400", func(t *testing.T) {
+		rr := srv.do(http.MethodPost, "/entities", map[string]any{
+			"composite_id": compositeID,
+			"name":         "My Post",
+			"slug":         "my-post",
+		}, token)
+		assertStatus(t, rr, http.StatusBadRequest)
+	})
+
+	var entityID string
+
+	t.Run("create with required field succeeds", func(t *testing.T) {
+		rr := srv.do(http.MethodPost, "/entities", map[string]any{
+			"composite_id": compositeID,
+			"name":         "My Post",
+			"slug":         "my-post",
+			"field_values": map[string]string{
+				"title": "Hello World",
+			},
+		}, token)
+		assertStatus(t, rr, http.StatusCreated)
+		var resp map[string]any
+		decode(t, rr, &resp)
+		entityID = resp["id"].(string)
+	})
+
+	t.Run("update without required field returns 400", func(t *testing.T) {
+		rr := srv.do(http.MethodPut, "/entities/"+entityID, map[string]any{
+			"name": "My Post",
+			"slug": "my-post",
+		}, token)
+		assertStatus(t, rr, http.StatusBadRequest)
+	})
+
+	t.Run("update with required field succeeds", func(t *testing.T) {
+		rr := srv.do(http.MethodPut, "/entities/"+entityID, map[string]any{
+			"name": "My Post",
+			"slug": "my-post",
+			"field_values": map[string]string{
+				"title": "Updated Title",
+			},
+		}, token)
+		assertStatus(t, rr, http.StatusOK)
+	})
+}
+
 func TestEntity_ParentChild(t *testing.T) {
 	srv := newTestServer(t)
 	token, compositeID := setupEntityAccess(t, srv, true, true)

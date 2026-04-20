@@ -44,7 +44,8 @@ func (h *FieldHandler) ListByComposite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	page, err := h.fieldSvc.ListByComposite(r.Context(), compositeID, ParsePagination(r))
+	p := ParsePagination(r)
+	page, err := h.fieldSvc.ListByComposite(r.Context(), compositeID, &p)
 	if err != nil {
 		ServiceError(w, err)
 		return
