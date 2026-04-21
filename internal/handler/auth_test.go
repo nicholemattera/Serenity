@@ -32,7 +32,7 @@ func TestAuth_Login(t *testing.T) {
 	}
 
 	t.Run("valid credentials returns token", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/auth/login", map[string]string{
+		rr := srv.do(http.MethodPost, "/v1/auth/login", map[string]string{
 			"email":    "jane@example.com",
 			"password": "password123",
 		}, "")
@@ -46,7 +46,7 @@ func TestAuth_Login(t *testing.T) {
 	})
 
 	t.Run("wrong password returns 401", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/auth/login", map[string]string{
+		rr := srv.do(http.MethodPost, "/v1/auth/login", map[string]string{
 			"email":    "jane@example.com",
 			"password": "wrong",
 		}, "")
@@ -54,7 +54,7 @@ func TestAuth_Login(t *testing.T) {
 	})
 
 	t.Run("unknown email returns 401", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/auth/login", map[string]string{
+		rr := srv.do(http.MethodPost, "/v1/auth/login", map[string]string{
 			"email":    "nobody@example.com",
 			"password": "password123",
 		}, "")
@@ -87,7 +87,7 @@ func TestAuth_Register(t *testing.T) {
 	}
 
 	t.Run("registers successfully with open role", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/auth/register", map[string]any{
+		rr := srv.do(http.MethodPost, "/v1/auth/register", map[string]any{
 			"first_name": "Alice",
 			"last_name":  "Smith",
 			"email":      "alice@example.com",
@@ -104,7 +104,7 @@ func TestAuth_Register(t *testing.T) {
 	})
 
 	t.Run("registration blocked for closed role", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/auth/register", map[string]any{
+		rr := srv.do(http.MethodPost, "/v1/auth/register", map[string]any{
 			"first_name": "Bob",
 			"last_name":  "Smith",
 			"email":      "bob@example.com",

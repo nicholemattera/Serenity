@@ -71,7 +71,7 @@ func TestComposite_CRUD(t *testing.T) {
 	var compositeID string
 
 	t.Run("create composite", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/composites", map[string]any{
+		rr := srv.do(http.MethodPost, "/v1/composites", map[string]any{
 			"name":          "Blog Posts",
 			"slug":          "blog-posts",
 			"default_read":  true,
@@ -88,7 +88,7 @@ func TestComposite_CRUD(t *testing.T) {
 	})
 
 	t.Run("get composite by id", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/composites/"+compositeID, nil, token)
+		rr := srv.do(http.MethodGet, "/v1/composites/"+compositeID, nil, token)
 		assertStatus(t, rr, http.StatusOK)
 
 		var resp map[string]any
@@ -99,7 +99,7 @@ func TestComposite_CRUD(t *testing.T) {
 	})
 
 	t.Run("get composite by slug", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/composites/slug/blog-posts", nil, token)
+		rr := srv.do(http.MethodGet, "/v1/composites/slug/blog-posts", nil, token)
 		assertStatus(t, rr, http.StatusOK)
 
 		var resp map[string]any
@@ -110,7 +110,7 @@ func TestComposite_CRUD(t *testing.T) {
 	})
 
 	t.Run("list composites", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/composites", nil, token)
+		rr := srv.do(http.MethodGet, "/v1/composites", nil, token)
 		assertStatus(t, rr, http.StatusOK)
 
 		var resp map[string]any
@@ -121,7 +121,7 @@ func TestComposite_CRUD(t *testing.T) {
 	})
 
 	t.Run("update composite", func(t *testing.T) {
-		rr := srv.do(http.MethodPut, "/composites/"+compositeID, map[string]any{
+		rr := srv.do(http.MethodPut, "/v1/composites/"+compositeID, map[string]any{
 			"name":          "Blog Posts Updated",
 			"slug":          "blog-posts",
 			"default_read":  true,
@@ -137,7 +137,7 @@ func TestComposite_CRUD(t *testing.T) {
 	})
 
 	t.Run("create field on composite", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/fields", map[string]any{
+		rr := srv.do(http.MethodPost, "/v1/fields", map[string]any{
 			"composite_id": compositeID,
 			"name":         "Title",
 			"slug":         "title",
@@ -155,7 +155,7 @@ func TestComposite_CRUD(t *testing.T) {
 	})
 
 	t.Run("get composite enriched includes fields", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/composites/"+compositeID+"?enrich=true", nil, token)
+		rr := srv.do(http.MethodGet, "/v1/composites/"+compositeID+"?enrich=true", nil, token)
 		assertStatus(t, rr, http.StatusOK)
 
 		var resp map[string]any
@@ -167,12 +167,12 @@ func TestComposite_CRUD(t *testing.T) {
 	})
 
 	t.Run("delete composite", func(t *testing.T) {
-		rr := srv.do(http.MethodDelete, "/composites/"+compositeID, nil, token)
+		rr := srv.do(http.MethodDelete, "/v1/composites/"+compositeID, nil, token)
 		assertStatus(t, rr, http.StatusNoContent)
 	})
 
 	t.Run("get deleted composite returns 404", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/composites/"+compositeID, nil, token)
+		rr := srv.do(http.MethodGet, "/v1/composites/"+compositeID, nil, token)
 		assertStatus(t, rr, http.StatusNotFound)
 	})
 }
@@ -182,7 +182,7 @@ func TestComposite_PermissionEnforcement(t *testing.T) {
 	token := setupCompositeAccess(t, srv)
 
 	// Create a composite to test against.
-	rr := srv.do(http.MethodPost, "/composites", map[string]any{
+	rr := srv.do(http.MethodPost, "/v1/composites", map[string]any{
 		"name":          "Private",
 		"slug":          "private",
 		"default_read":  false,
@@ -194,19 +194,19 @@ func TestComposite_PermissionEnforcement(t *testing.T) {
 	compositeID := created["id"].(string)
 
 	t.Run("unauthenticated cannot create composite", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/composites", map[string]any{
+		rr := srv.do(http.MethodPost, "/v1/composites", map[string]any{
 			"name": "x", "slug": "x",
 		}, "")
 		assertStatus(t, rr, http.StatusForbidden)
 	})
 
 	t.Run("unauthenticated cannot list composites", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/composites", nil, "")
+		rr := srv.do(http.MethodGet, "/v1/composites", nil, "")
 		assertStatus(t, rr, http.StatusForbidden)
 	})
 
 	t.Run("unauthenticated cannot get composite by id", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/composites/"+compositeID, nil, "")
+		rr := srv.do(http.MethodGet, "/v1/composites/"+compositeID, nil, "")
 		assertStatus(t, rr, http.StatusForbidden)
 	})
 }

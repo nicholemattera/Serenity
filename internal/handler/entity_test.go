@@ -53,7 +53,7 @@ func setupEntityAccess(t *testing.T, srv *testServer, defaultRead, defaultWrite 
 	}
 
 	// Create a composite with the given default access flags.
-	rr := srv.do(http.MethodPost, "/composites", map[string]any{
+	rr := srv.do(http.MethodPost, "/v1/composites", map[string]any{
 		"name":          "Posts",
 		"slug":          "posts",
 		"default_read":  defaultRead,
@@ -74,7 +74,7 @@ func TestEntity_CRUD(t *testing.T) {
 	var entityID string
 
 	t.Run("create entity", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/entities", map[string]any{
+		rr := srv.do(http.MethodPost, "/v1/entities", map[string]any{
 			"composite_id": compositeID,
 			"name":         "Hello World",
 			"slug":         "hello-world",
@@ -90,7 +90,7 @@ func TestEntity_CRUD(t *testing.T) {
 	})
 
 	t.Run("get entity by id", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/entities/"+entityID, nil, token)
+		rr := srv.do(http.MethodGet, "/v1/entities/"+entityID, nil, token)
 		assertStatus(t, rr, http.StatusOK)
 
 		var resp map[string]any
@@ -101,7 +101,7 @@ func TestEntity_CRUD(t *testing.T) {
 	})
 
 	t.Run("get entity by slug", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/composites/"+compositeID+"/entities/slug/hello-world", nil, token)
+		rr := srv.do(http.MethodGet, "/v1/composites/"+compositeID+"/entities/slug/hello-world", nil, token)
 		assertStatus(t, rr, http.StatusOK)
 
 		var resp map[string]any
@@ -112,7 +112,7 @@ func TestEntity_CRUD(t *testing.T) {
 	})
 
 	t.Run("list entities by composite", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/composites/"+compositeID+"/entities", nil, token)
+		rr := srv.do(http.MethodGet, "/v1/composites/"+compositeID+"/entities", nil, token)
 		assertStatus(t, rr, http.StatusOK)
 
 		var resp map[string]any
@@ -123,7 +123,7 @@ func TestEntity_CRUD(t *testing.T) {
 	})
 
 	t.Run("update entity", func(t *testing.T) {
-		rr := srv.do(http.MethodPut, "/entities/"+entityID, map[string]any{
+		rr := srv.do(http.MethodPut, "/v1/entities/"+entityID, map[string]any{
 			"name": "Hello World Updated",
 			"slug": "hello-world",
 		}, token)
@@ -138,7 +138,7 @@ func TestEntity_CRUD(t *testing.T) {
 
 	t.Run("set field value", func(t *testing.T) {
 		// Create a field first.
-		fieldRR := srv.do(http.MethodPost, "/fields", map[string]any{
+		fieldRR := srv.do(http.MethodPost, "/v1/fields", map[string]any{
 			"composite_id": compositeID,
 			"name":         "Body",
 			"slug":         "body",
@@ -149,7 +149,7 @@ func TestEntity_CRUD(t *testing.T) {
 		var field map[string]any
 		decode(t, fieldRR, &field)
 
-		rr := srv.do(http.MethodPost, "/field-values", map[string]any{
+		rr := srv.do(http.MethodPost, "/v1/field-values", map[string]any{
 			"entity_id": entityID,
 			"field_id":  field["id"],
 			"value":     "My first post content",
@@ -164,7 +164,7 @@ func TestEntity_CRUD(t *testing.T) {
 	})
 
 	t.Run("get entity enriched includes field values", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/entities/"+entityID+"?enrich=true", nil, token)
+		rr := srv.do(http.MethodGet, "/v1/entities/"+entityID+"?enrich=true", nil, token)
 		assertStatus(t, rr, http.StatusOK)
 
 		var resp map[string]any
@@ -176,12 +176,12 @@ func TestEntity_CRUD(t *testing.T) {
 	})
 
 	t.Run("delete entity", func(t *testing.T) {
-		rr := srv.do(http.MethodDelete, "/entities/"+entityID, nil, token)
+		rr := srv.do(http.MethodDelete, "/v1/entities/"+entityID, nil, token)
 		assertStatus(t, rr, http.StatusNoContent)
 	})
 
 	t.Run("get deleted entity returns 404", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/entities/"+entityID, nil, token)
+		rr := srv.do(http.MethodGet, "/v1/entities/"+entityID, nil, token)
 		assertStatus(t, rr, http.StatusNotFound)
 	})
 }
@@ -191,12 +191,12 @@ func TestEntity_DefaultReadWrite(t *testing.T) {
 	_, compositeID := setupEntityAccess(t, srv, true, true)
 
 	t.Run("unauthenticated can read entity when default_read=true", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/composites/"+compositeID+"/entities", nil, "")
+		rr := srv.do(http.MethodGet, "/v1/composites/"+compositeID+"/entities", nil, "")
 		assertStatus(t, rr, http.StatusOK)
 	})
 
 	t.Run("unauthenticated can create entity when default_write=true", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/entities", map[string]any{
+		rr := srv.do(http.MethodPost, "/v1/entities", map[string]any{
 			"composite_id": compositeID,
 			"name":         "Anonymous Post",
 			"slug":         "anonymous-post",
@@ -208,12 +208,12 @@ func TestEntity_DefaultReadWrite(t *testing.T) {
 	_, closedCompositeID := setupEntityAccess(t, srv2, false, false)
 
 	t.Run("unauthenticated cannot read entity when default_read=false", func(t *testing.T) {
-		rr := srv2.do(http.MethodGet, "/composites/"+closedCompositeID+"/entities", nil, "")
+		rr := srv2.do(http.MethodGet, "/v1/composites/"+closedCompositeID+"/entities", nil, "")
 		assertStatus(t, rr, http.StatusForbidden)
 	})
 
 	t.Run("unauthenticated cannot create entity when default_write=false", func(t *testing.T) {
-		rr := srv2.do(http.MethodPost, "/entities", map[string]any{
+		rr := srv2.do(http.MethodPost, "/v1/entities", map[string]any{
 			"composite_id": closedCompositeID,
 			"name":         "Blocked Post",
 			"slug":         "blocked-post",
@@ -227,7 +227,7 @@ func TestEntity_FieldValues(t *testing.T) {
 	token, compositeID := setupEntityAccess(t, srv, true, true)
 
 	// Create two fields on the composite.
-	titleRR := srv.do(http.MethodPost, "/fields", map[string]any{
+	titleRR := srv.do(http.MethodPost, "/v1/fields", map[string]any{
 		"composite_id": compositeID,
 		"name":         "Title",
 		"slug":         "title",
@@ -236,7 +236,7 @@ func TestEntity_FieldValues(t *testing.T) {
 	}, token)
 	assertStatus(t, titleRR, http.StatusCreated)
 
-	bodyRR := srv.do(http.MethodPost, "/fields", map[string]any{
+	bodyRR := srv.do(http.MethodPost, "/v1/fields", map[string]any{
 		"composite_id": compositeID,
 		"name":         "Body",
 		"slug":         "body",
@@ -248,7 +248,7 @@ func TestEntity_FieldValues(t *testing.T) {
 	var entityID string
 
 	t.Run("create entity with field values persists values", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/entities", map[string]any{
+		rr := srv.do(http.MethodPost, "/v1/entities", map[string]any{
 			"composite_id": compositeID,
 			"name":         "My Post",
 			"slug":         "my-post",
@@ -262,7 +262,7 @@ func TestEntity_FieldValues(t *testing.T) {
 		decode(t, rr, &resp)
 		entityID = resp["id"].(string)
 
-		enrichRR := srv.do(http.MethodGet, "/entities/"+entityID+"?enrich=true", nil, token)
+		enrichRR := srv.do(http.MethodGet, "/v1/entities/"+entityID+"?enrich=true", nil, token)
 		assertStatus(t, enrichRR, http.StatusOK)
 		var enriched map[string]any
 		decode(t, enrichRR, &enriched)
@@ -280,7 +280,7 @@ func TestEntity_FieldValues(t *testing.T) {
 	})
 
 	t.Run("update entity with field values updates values", func(t *testing.T) {
-		rr := srv.do(http.MethodPut, "/entities/"+entityID, map[string]any{
+		rr := srv.do(http.MethodPut, "/v1/entities/"+entityID, map[string]any{
 			"name": "My Post",
 			"slug": "my-post",
 			"field_values": map[string]string{
@@ -290,7 +290,7 @@ func TestEntity_FieldValues(t *testing.T) {
 		}, token)
 		assertStatus(t, rr, http.StatusOK)
 
-		enrichRR := srv.do(http.MethodGet, "/entities/"+entityID+"?enrich=true", nil, token)
+		enrichRR := srv.do(http.MethodGet, "/v1/entities/"+entityID+"?enrich=true", nil, token)
 		assertStatus(t, enrichRR, http.StatusOK)
 		var enriched map[string]any
 		decode(t, enrichRR, &enriched)
@@ -313,7 +313,7 @@ func TestEntity_RequiredFields(t *testing.T) {
 	token, compositeID := setupEntityAccess(t, srv, true, true)
 
 	// Create a required field on the composite.
-	rr := srv.do(http.MethodPost, "/fields", map[string]any{
+	rr := srv.do(http.MethodPost, "/v1/fields", map[string]any{
 		"composite_id": compositeID,
 		"name":         "Title",
 		"slug":         "title",
@@ -324,7 +324,7 @@ func TestEntity_RequiredFields(t *testing.T) {
 	assertStatus(t, rr, http.StatusCreated)
 
 	t.Run("create without required field returns 400", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/entities", map[string]any{
+		rr := srv.do(http.MethodPost, "/v1/entities", map[string]any{
 			"composite_id": compositeID,
 			"name":         "My Post",
 			"slug":         "my-post",
@@ -335,7 +335,7 @@ func TestEntity_RequiredFields(t *testing.T) {
 	var entityID string
 
 	t.Run("create with required field succeeds", func(t *testing.T) {
-		rr := srv.do(http.MethodPost, "/entities", map[string]any{
+		rr := srv.do(http.MethodPost, "/v1/entities", map[string]any{
 			"composite_id": compositeID,
 			"name":         "My Post",
 			"slug":         "my-post",
@@ -350,7 +350,7 @@ func TestEntity_RequiredFields(t *testing.T) {
 	})
 
 	t.Run("update without required field returns 400", func(t *testing.T) {
-		rr := srv.do(http.MethodPut, "/entities/"+entityID, map[string]any{
+		rr := srv.do(http.MethodPut, "/v1/entities/"+entityID, map[string]any{
 			"name": "My Post",
 			"slug": "my-post",
 		}, token)
@@ -358,7 +358,7 @@ func TestEntity_RequiredFields(t *testing.T) {
 	})
 
 	t.Run("update with required field succeeds", func(t *testing.T) {
-		rr := srv.do(http.MethodPut, "/entities/"+entityID, map[string]any{
+		rr := srv.do(http.MethodPut, "/v1/entities/"+entityID, map[string]any{
 			"name": "My Post",
 			"slug": "my-post",
 			"field_values": map[string]string{
@@ -374,7 +374,7 @@ func TestEntity_ParentChild(t *testing.T) {
 	token, compositeID := setupEntityAccess(t, srv, true, true)
 
 	// Create parent entity.
-	rr := srv.do(http.MethodPost, "/entities", map[string]any{
+	rr := srv.do(http.MethodPost, "/v1/entities", map[string]any{
 		"composite_id": compositeID,
 		"name":         "Parent",
 		"slug":         "parent",
@@ -385,7 +385,7 @@ func TestEntity_ParentChild(t *testing.T) {
 	parentID := parent["id"].(string)
 
 	// Create child entity.
-	rr = srv.do(http.MethodPost, "/entities", map[string]any{
+	rr = srv.do(http.MethodPost, "/v1/entities", map[string]any{
 		"composite_id": compositeID,
 		"name":         "Child",
 		"slug":         "child",
@@ -397,7 +397,7 @@ func TestEntity_ParentChild(t *testing.T) {
 	childID := child["id"].(string)
 
 	t.Run("list children returns child", func(t *testing.T) {
-		rr := srv.do(http.MethodGet, "/entities/"+parentID+"/children", nil, token)
+		rr := srv.do(http.MethodGet, "/v1/entities/"+parentID+"/children", nil, token)
 		assertStatus(t, rr, http.StatusOK)
 
 		var resp map[string]any
