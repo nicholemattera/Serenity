@@ -148,7 +148,7 @@ func (s *compositeService) Update(ctx context.Context, composite *models.Composi
 	}
 
 	if !enrich {
-		return &CompositeDetail{Composite: *composite}, nil
+		return &CompositeDetail{Composite: *result}, nil
 	}
 
 	return s.enrich(ctx, result)
