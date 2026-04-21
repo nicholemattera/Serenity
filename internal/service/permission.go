@@ -13,8 +13,6 @@ import (
 	"github.com/nicholemattera/serenity/internal/repository"
 )
 
-const defaultPermissionCacheTTL = 45 * time.Second
-
 type PermissionService interface {
 	Create(ctx context.Context, permission *models.Permission) (*models.Permission, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Permission, error)
@@ -44,14 +42,36 @@ type permissionService struct {
 	resourceMu     sync.RWMutex
 	resourceCache  map[string]*permissionCacheEntry
 	ttl            time.Duration
+	maxCacheSize   int
 }
 
-func NewPermissionService(repo repository.PermissionRepository) PermissionService {
+func NewPermissionService(repo repository.PermissionRepository, ttl time.Duration, maxCacheSize int) PermissionService {
 	return &permissionService{
 		repo:           repo,
 		compositeCache: make(map[string]*permissionCacheEntry),
 		resourceCache:  make(map[string]*permissionCacheEntry),
-		ttl:            defaultPermissionCacheTTL,
+		ttl:            ttl,
+		maxCacheSize:   maxCacheSize,
+	}
+}
+
+// pruneCache must be called with the write lock held.
+// It sweeps expired entries first; if the cache is still at capacity, it evicts one arbitrary entry.
+func pruneCache(cache map[string]*permissionCacheEntry, maxSize int) {
+	if len(cache) < maxSize {
+		return
+	}
+	now := time.Now()
+	for k, v := range cache {
+		if now.After(v.expiresAt) {
+			delete(cache, k)
+		}
+	}
+	if len(cache) >= maxSize {
+		for k := range cache {
+			delete(cache, k)
+			break
+		}
 	}
 }
 
@@ -72,8 +92,10 @@ func (s *permissionService) cachedByRoleAndComposite(ctx context.Context, roleID
 
 	s.compositeMu.Lock()
 	if errors.Is(err, pgx.ErrNoRows) {
+		pruneCache(s.compositeCache, s.maxCacheSize)
 		s.compositeCache[key] = &permissionCacheEntry{noRows: true, expiresAt: time.Now().Add(s.ttl)}
 	} else if err == nil {
+		pruneCache(s.compositeCache, s.maxCacheSize)
 		s.compositeCache[key] = &permissionCacheEntry{permission: p, expiresAt: time.Now().Add(s.ttl)}
 	}
 	s.compositeMu.Unlock()
@@ -98,8 +120,10 @@ func (s *permissionService) cachedByRoleAndResource(ctx context.Context, roleID 
 
 	s.resourceMu.Lock()
 	if errors.Is(err, pgx.ErrNoRows) {
+		pruneCache(s.resourceCache, s.maxCacheSize)
 		s.resourceCache[key] = &permissionCacheEntry{noRows: true, expiresAt: time.Now().Add(s.ttl)}
 	} else if err == nil {
+		pruneCache(s.resourceCache, s.maxCacheSize)
 		s.resourceCache[key] = &permissionCacheEntry{permission: p, expiresAt: time.Now().Add(s.ttl)}
 	}
 	s.resourceMu.Unlock()

@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -56,7 +57,7 @@ func TestPermissionService_CanReadResource(t *testing.T) {
 				getByRoleAndResource: func(_ context.Context, _ uuid.UUID, _ models.ResourceType) (*models.Permission, error) {
 					return tt.repoResult, tt.repoErr
 				},
-			})
+			}, 45*time.Second, 1000)
 
 			got, err := svc.CanReadResource(ctx, models.ResourceTypeComposite, tt.roleID)
 			if err != nil {
@@ -114,7 +115,7 @@ func TestPermissionService_CanWriteResource(t *testing.T) {
 				getByRoleAndResource: func(_ context.Context, _ uuid.UUID, _ models.ResourceType) (*models.Permission, error) {
 					return tt.repoResult, tt.repoErr
 				},
-			})
+			}, 45*time.Second, 1000)
 
 			got, err := svc.CanWriteResource(ctx, models.ResourceTypeComposite, tt.roleID)
 			if err != nil {
@@ -139,7 +140,7 @@ func TestPermissionService_CacheHit_Composite(t *testing.T) {
 			calls++
 			return &models.Permission{CanRead: true, CanWrite: false}, nil
 		},
-	})
+	}, 45*time.Second, 1000)
 
 	for i := 0; i < 3; i++ {
 		got, err := svc.CanRead(ctx, composite, &roleID)
@@ -169,7 +170,7 @@ func TestPermissionService_CacheHit_Resource(t *testing.T) {
 			calls++
 			return &models.Permission{CanRead: true}, nil
 		},
-	})
+	}, 45*time.Second, 1000)
 
 	for i := 0; i < 3; i++ {
 		got, err := svc.CanReadResource(ctx, models.ResourceTypeComposite, &roleID)
@@ -199,7 +200,7 @@ func TestPermissionService_CacheNoRowsHit(t *testing.T) {
 			calls++
 			return nil, pgx.ErrNoRows
 		},
-	})
+	}, 45*time.Second, 1000)
 
 	for i := 0; i < 3; i++ {
 		got, err := svc.CanReadResource(ctx, models.ResourceTypeUser, &roleID)
@@ -228,7 +229,7 @@ func TestPermissionService_CacheEvictedOnCreate(t *testing.T) {
 			calls++
 			return &models.Permission{CanRead: true}, nil
 		},
-	})
+	}, 45*time.Second, 1000)
 
 	// Populate cache.
 	if _, err := svc.CanRead(ctx, composite, &roleID); err != nil {
@@ -311,7 +312,7 @@ func TestPermissionService_CanRead(t *testing.T) {
 				getByRoleAndComposite: func(_ context.Context, _, _ uuid.UUID) (*models.Permission, error) {
 					return tt.repoResult, tt.repoErr
 				},
-			})
+			}, 45*time.Second, 1000)
 
 			got, err := svc.CanRead(ctx, tt.composite, tt.roleID)
 			if err != nil {
@@ -385,7 +386,7 @@ func TestPermissionService_CanWrite(t *testing.T) {
 				getByRoleAndComposite: func(_ context.Context, _, _ uuid.UUID) (*models.Permission, error) {
 					return tt.repoResult, tt.repoErr
 				},
-			})
+			}, 45*time.Second, 1000)
 
 			got, err := svc.CanWrite(ctx, tt.composite, tt.roleID)
 			if err != nil {

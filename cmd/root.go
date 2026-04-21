@@ -59,7 +59,7 @@ func initApp() (*appState, error) {
 
 	roleSvc := service.NewRoleService(roleRepo)
 	userSvc := service.NewUserService(userRepo, cfg.BCryptCost)
-	permissionSvc := service.NewPermissionService(permissionRepo)
+	permissionSvc := service.NewPermissionService(permissionRepo, cfg.PermissionCacheTTL, cfg.PermissionCacheMaxSize)
 	authSvc := service.NewAuthService(userRepo, roleRepo, cfg.JWTSecret)
 	fieldSvc := service.NewFieldService(fieldRepo)
 	compositeSvc := service.NewCompositeService(compositeRepo, fieldSvc)

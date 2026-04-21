@@ -19,6 +19,8 @@ type Config struct {
 	RegisterRateLimitWindow       time.Duration
 	PasswordUpdateRateLimit       int
 	PasswordUpdateRateLimitWindow time.Duration
+	PermissionCacheTTL            time.Duration
+	PermissionCacheMaxSize        int
 }
 
 func Load() (*Config, error) {
@@ -34,6 +36,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("REGISTER_RATE_LIMIT_WINDOW", "1m")
 	viper.SetDefault("PASSWORD_UPDATE_RATE_LIMIT", 3)
 	viper.SetDefault("PASSWORD_UPDATE_RATE_LIMIT_WINDOW", "1m")
+	viper.SetDefault("PERMISSION_CACHE_TTL", "45s")
+	viper.SetDefault("PERMISSION_CACHE_MAX_SIZE", "1000")
 
 	var missing []string
 	for _, key := range []string{"DATABASE_URL", "JWT_SECRET"} {
@@ -57,6 +61,10 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid PASSWORD_UPDATE_RATE_LIMIT_WINDOW: %w", err)
 	}
+	permissionCacheTTL, err := time.ParseDuration(viper.GetString("PERMISSION_CACHE_TTL"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid PERMISSION_CACHE_TTL: %w", err)
+	}
 
 	return &Config{
 		Port:                          viper.GetString("PORT"),
@@ -70,5 +78,7 @@ func Load() (*Config, error) {
 		RegisterRateLimitWindow:       registerWindow,
 		PasswordUpdateRateLimit:       viper.GetInt("PASSWORD_UPDATE_RATE_LIMIT"),
 		PasswordUpdateRateLimitWindow: passwordUpdateWindow,
+		PermissionCacheTTL:            permissionCacheTTL,
+		PermissionCacheMaxSize:        viper.GetInt("PERMISSION_CACHE_MAX_SIZE"),
 	}, nil
 }

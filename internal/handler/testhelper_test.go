@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -88,7 +89,7 @@ func newTestServer(t *testing.T) *testServer {
 
 	roleSvc := service.NewRoleService(roleRepo)
 	userSvc := service.NewUserService(userRepo, 4) // low bcrypt cost for tests
-	permissionSvc := service.NewPermissionService(permissionRepo)
+	permissionSvc := service.NewPermissionService(permissionRepo, 45*time.Second, 1000)
 	authSvc := service.NewAuthService(userRepo, roleRepo, "test-secret")
 	fieldSvc := service.NewFieldService(fieldRepo)
 	compositeSvc := service.NewCompositeService(compositeRepo, fieldSvc)
