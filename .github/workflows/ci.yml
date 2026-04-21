@@ -9,6 +9,9 @@ jobs:
   ci:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+
     services:
       postgres:
         image: postgres:17
