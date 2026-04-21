@@ -2,8 +2,12 @@ package handler
 
 import (
 	"context"
+	"log/slog"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/nicholemattera/serenity/internal/service"
 )
@@ -45,4 +49,56 @@ func RequireAuth(next http.Handler) http.Handler {
 func GetClaims(r *http.Request) *service.Claims {
 	claims, _ := r.Context().Value(claimsKey).(*service.Claims)
 	return claims
+}
+
+// RateLimit returns a middleware that allows at most rate requests per window per IP.
+func RateLimit(rate int, window time.Duration) func(http.Handler) http.Handler {
+	type entry struct {
+		mu      sync.Mutex
+		count   int
+		resetAt time.Time
+	}
+	var m sync.Map
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := realIP(r)
+			v, _ := m.LoadOrStore(ip, &entry{})
+			e := v.(*entry)
+
+			e.mu.Lock()
+			now := time.Now()
+			if now.After(e.resetAt) {
+				e.count = 0
+				e.resetAt = now.Add(window)
+			}
+			e.count++
+			count := e.count
+			e.mu.Unlock()
+
+			if count > rate {
+				slog.Warn("rate limit exceeded", "ip", ip, "path", r.URL.Path)
+				Error(w, http.StatusTooManyRequests, "too many requests")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func realIP(r *http.Request) string {
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		return ip
+	}
+	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+		if i := strings.IndexByte(fwd, ','); i >= 0 {
+			return strings.TrimSpace(fwd[:i])
+		}
+		return strings.TrimSpace(fwd)
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
