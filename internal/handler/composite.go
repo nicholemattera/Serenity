@@ -182,10 +182,6 @@ func (h *CompositeHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 func (h *CompositeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	claims := GetClaims(r)
-	if claims == nil {
-		Error(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
 
 	ok, err := h.permissionSvc.CanWriteResource(r.Context(), models.ResourceTypeComposite, h.callerRoleID(r))
 	if err != nil {
