@@ -39,8 +39,9 @@ type permissionCacheEntry struct {
 
 type permissionService struct {
 	repo           repository.PermissionRepository
-	mu             sync.RWMutex
+	compositeMu    sync.RWMutex
 	compositeCache map[string]*permissionCacheEntry
+	resourceMu     sync.RWMutex
 	resourceCache  map[string]*permissionCacheEntry
 	ttl            time.Duration
 }
@@ -57,9 +58,9 @@ func NewPermissionService(repo repository.PermissionRepository) PermissionServic
 func (s *permissionService) cachedByRoleAndComposite(ctx context.Context, roleID, compositeID uuid.UUID) (*models.Permission, error) {
 	key := roleID.String() + ":" + compositeID.String()
 
-	s.mu.RLock()
+	s.compositeMu.RLock()
 	entry, ok := s.compositeCache[key]
-	s.mu.RUnlock()
+	s.compositeMu.RUnlock()
 	if ok && time.Now().Before(entry.expiresAt) {
 		if entry.noRows {
 			return nil, pgx.ErrNoRows
@@ -69,13 +70,13 @@ func (s *permissionService) cachedByRoleAndComposite(ctx context.Context, roleID
 
 	p, err := s.repo.GetByRoleAndComposite(ctx, roleID, compositeID)
 
-	s.mu.Lock()
+	s.compositeMu.Lock()
 	if errors.Is(err, pgx.ErrNoRows) {
 		s.compositeCache[key] = &permissionCacheEntry{noRows: true, expiresAt: time.Now().Add(s.ttl)}
 	} else if err == nil {
 		s.compositeCache[key] = &permissionCacheEntry{permission: p, expiresAt: time.Now().Add(s.ttl)}
 	}
-	s.mu.Unlock()
+	s.compositeMu.Unlock()
 
 	return p, err
 }
@@ -83,9 +84,9 @@ func (s *permissionService) cachedByRoleAndComposite(ctx context.Context, roleID
 func (s *permissionService) cachedByRoleAndResource(ctx context.Context, roleID uuid.UUID, resourceType models.ResourceType) (*models.Permission, error) {
 	key := roleID.String() + ":" + string(resourceType)
 
-	s.mu.RLock()
+	s.resourceMu.RLock()
 	entry, ok := s.resourceCache[key]
-	s.mu.RUnlock()
+	s.resourceMu.RUnlock()
 	if ok && time.Now().Before(entry.expiresAt) {
 		if entry.noRows {
 			return nil, pgx.ErrNoRows
@@ -95,25 +96,27 @@ func (s *permissionService) cachedByRoleAndResource(ctx context.Context, roleID 
 
 	p, err := s.repo.GetByRoleAndResource(ctx, roleID, resourceType)
 
-	s.mu.Lock()
+	s.resourceMu.Lock()
 	if errors.Is(err, pgx.ErrNoRows) {
 		s.resourceCache[key] = &permissionCacheEntry{noRows: true, expiresAt: time.Now().Add(s.ttl)}
 	} else if err == nil {
 		s.resourceCache[key] = &permissionCacheEntry{permission: p, expiresAt: time.Now().Add(s.ttl)}
 	}
-	s.mu.Unlock()
+	s.resourceMu.Unlock()
 
 	return p, err
 }
 
 func (s *permissionService) evict(p *models.Permission) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if p.CompositeID != nil {
+		s.compositeMu.Lock()
 		delete(s.compositeCache, p.RoleID.String()+":"+p.CompositeID.String())
+		s.compositeMu.Unlock()
 	}
 	if p.ResourceType != nil {
+		s.resourceMu.Lock()
 		delete(s.resourceCache, p.RoleID.String()+":"+string(*p.ResourceType))
+		s.resourceMu.Unlock()
 	}
 }
 
