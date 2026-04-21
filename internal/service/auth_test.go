@@ -59,6 +59,7 @@ func TestAuthService_Login(t *testing.T) {
 			"test-secret",
 			"serenity",
 			"serenity",
+			4, // low bcrypt cost for tests
 		)
 	}
 
@@ -113,6 +114,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 		"test-secret",
 		"serenity",
 		"serenity",
+		4, // low bcrypt cost for tests
 	)
 
 	t.Run("valid token returns correct claims", func(t *testing.T) {
@@ -152,6 +154,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 			"different-secret",
 			"serenity",
 			"serenity",
+			4, // low bcrypt cost for tests
 		)
 		token, _ := otherSvc.Login(ctx, user.Email, "password")
 		_, err := svc.ValidateToken(token)

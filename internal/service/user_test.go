@@ -22,7 +22,7 @@ func TestUserService_Create_HashesPassword(t *testing.T) {
 			savedUser = user
 			return user, nil
 		},
-	}, bcrypt.MinCost)
+	}, 4) // low bcrypt cost for tests
 
 	_, err := svc.Create(ctx, &models.User{
 		Email:  "user@example.com",
@@ -46,7 +46,7 @@ func TestUserService_Create_HashesPassword(t *testing.T) {
 }
 
 func TestUserService_GetByID_NotFound(t *testing.T) {
-	svc := service.NewUserService(&mockUserRepo{}, bcrypt.MinCost)
+	svc := service.NewUserService(&mockUserRepo{}, 4) // low bcrypt cost for tests
 
 	_, err := svc.GetByID(context.Background(), uuid.New())
 	if !errors.Is(err, service.ErrNotFound) {

@@ -90,7 +90,7 @@ func newTestServer(t *testing.T) *testServer {
 	roleSvc := service.NewRoleService(roleRepo)
 	userSvc := service.NewUserService(userRepo, 4) // low bcrypt cost for tests
 	permissionSvc := service.NewPermissionService(permissionRepo, 45*time.Second, 1000)
-	authSvc := service.NewAuthService(userRepo, roleRepo, "test-secret", "serenity", "serenity")
+	authSvc := service.NewAuthService(userRepo, roleRepo, "test-secret", "serenity", "serenity", 4) // low bcrypt cost for tests
 	fieldSvc := service.NewFieldService(fieldRepo)
 	compositeSvc := service.NewCompositeService(compositeRepo, fieldSvc)
 	fieldValueSvc := service.NewFieldValueService(fieldValueRepo, fieldSvc)

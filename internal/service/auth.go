@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -25,26 +26,39 @@ type AuthService interface {
 }
 
 type authService struct {
-	userRepo repository.UserRepository
-	roleRepo repository.RoleRepository
-	secret   []byte
-	issuer   string
-	audience string
+	userRepo   repository.UserRepository
+	roleRepo   repository.RoleRepository
+	secret     []byte
+	issuer     string
+	audience   string
+	bcryptCost int
 }
 
-func NewAuthService(userRepo repository.UserRepository, roleRepo repository.RoleRepository, jwtSecret, issuer, audience string) AuthService {
+func NewAuthService(userRepo repository.UserRepository, roleRepo repository.RoleRepository, jwtSecret, issuer, audience string, bcryptCost int) AuthService {
 	return &authService{
-		userRepo: userRepo,
-		roleRepo: roleRepo,
-		secret:   []byte(jwtSecret),
-		issuer:   issuer,
-		audience: audience,
+		userRepo:   userRepo,
+		roleRepo:   roleRepo,
+		secret:     []byte(jwtSecret),
+		issuer:     issuer,
+		audience:   audience,
+		bcryptCost: bcryptCost,
 	}
 }
 
 func (s *authService) Login(ctx context.Context, email, password string) (string, error) {
+	dummyHash, err := bcrypt.GenerateFromPassword([]byte("dummy_password"), s.bcryptCost)
+	if err != nil {
+		return "", errors.New("internal error")
+	}
+
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
+		// Prevents timing to know whether or not a user exists.
+		err := bcrypt.CompareHashAndPassword([]byte(dummyHash), []byte(password))
+		if err != nil {
+			return "", ErrUnauthorized
+		}
+
 		return "", ErrUnauthorized
 	}
 
