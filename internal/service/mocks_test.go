@@ -129,25 +129,17 @@ func (m *mockFieldService) Delete(ctx context.Context, id uuid.UUID, deletedBy u
 // --- FieldValueRepository mock ---
 
 type mockFieldValueRepo struct {
-	getByEntityAndField func(ctx context.Context, entityID, fieldID uuid.UUID) (*models.FieldValue, error)
-	create              func(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error)
-	update              func(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error)
+	upsert func(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error)
 }
 
-func (m *mockFieldValueRepo) Create(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error) {
-	return m.create(ctx, fv)
+func (m *mockFieldValueRepo) Upsert(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error) {
+	return m.upsert(ctx, fv)
 }
 func (m *mockFieldValueRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.FieldValue, error) {
 	return nil, pgx.ErrNoRows
 }
-func (m *mockFieldValueRepo) GetByEntityAndField(ctx context.Context, entityID, fieldID uuid.UUID) (*models.FieldValue, error) {
-	return m.getByEntityAndField(ctx, entityID, fieldID)
-}
 func (m *mockFieldValueRepo) ListByEntity(ctx context.Context, entityID uuid.UUID, p *repository.Pagination) (*repository.Page[models.FieldValue], error) {
 	return &repository.Page[models.FieldValue]{Data: []models.FieldValue{}}, nil
-}
-func (m *mockFieldValueRepo) Update(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error) {
-	return m.update(ctx, fv)
 }
 func (m *mockFieldValueRepo) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
 	return nil

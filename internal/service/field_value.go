@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -39,20 +38,7 @@ func (s *fieldValueService) Set(ctx context.Context, fv *models.FieldValue) (*mo
 		return nil, err
 	}
 
-	existing, err := s.repo.GetByEntityAndField(ctx, fv.EntityID, fv.FieldID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
-	}
-	if existing != nil {
-		existing.Value = fv.Value
-		existing.UpdatedBy = fv.UpdatedBy
-		return s.repo.Update(ctx, existing)
-	}
-	result, err := s.repo.Create(ctx, fv)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrConflict, err)
-	}
-	return result, nil
+	return s.repo.Upsert(ctx, fv)
 }
 
 func (s *fieldValueService) GetByID(ctx context.Context, id uuid.UUID) (*models.FieldValue, error) {

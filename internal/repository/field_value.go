@@ -12,11 +12,9 @@ import (
 )
 
 type FieldValueRepository interface {
-	Create(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error)
+	Upsert(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.FieldValue, error)
-	GetByEntityAndField(ctx context.Context, entityID, fieldID uuid.UUID) (*models.FieldValue, error)
 	ListByEntity(ctx context.Context, entityID uuid.UUID, p *Pagination) (*Page[models.FieldValue], error)
-	Update(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
 
@@ -39,21 +37,23 @@ func scanFieldValue(s interface{ Scan(...any) error }, fv *models.FieldValue) er
 	)
 }
 
-func (r *fieldValueRepository) Create(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error) {
-	fv.ID = uuid.New()
-	now := time.Now()
-	fv.CreatedAt = now
-	fv.UpdatedAt = now
-
-	_, err := r.db.Exec(ctx, `
-		INSERT INTO field_values (id, entity_id, field_id, value, created_at, updated_at, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, fv.ID, fv.EntityID, fv.FieldID, fv.Value, fv.CreatedAt, fv.UpdatedAt, fv.CreatedBy)
+func (r *fieldValueRepository) Upsert(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error) {
+	result := &models.FieldValue{}
+	err := scanFieldValue(r.db.QueryRow(ctx, `
+		INSERT INTO field_values (entity_id, field_id, value, created_at, updated_at, created_by, updated_by)
+		VALUES ($1, $2, $3, NOW(), NOW(), $4, $5)
+		ON CONFLICT (entity_id, field_id) WHERE deleted_at IS NULL
+		DO UPDATE SET
+			value = EXCLUDED.value,
+			updated_at = EXCLUDED.updated_at,
+			updated_by = EXCLUDED.updated_by
+		RETURNING `+fieldValueColumns,
+		fv.EntityID, fv.FieldID, fv.Value, fv.CreatedBy, fv.UpdatedBy,
+	), result)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create field value: %w", err)
+		return nil, fmt.Errorf("failed to upsert field value: %w", err)
 	}
-
-	return fv, nil
+	return result, nil
 }
 
 func (r *fieldValueRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.FieldValue, error) {
@@ -63,20 +63,6 @@ func (r *fieldValueRepository) GetByID(ctx context.Context, id uuid.UUID) (*mode
 		FROM field_values
 		WHERE id = $1 AND deleted_at IS NULL
 	`, id), fv)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get field value: %w", err)
-	}
-
-	return fv, nil
-}
-
-func (r *fieldValueRepository) GetByEntityAndField(ctx context.Context, entityID, fieldID uuid.UUID) (*models.FieldValue, error) {
-	fv := &models.FieldValue{}
-	err := scanFieldValue(r.db.QueryRow(ctx, `
-		SELECT `+fieldValueColumns+`
-		FROM field_values
-		WHERE entity_id = $1 AND field_id = $2 AND deleted_at IS NULL
-	`, entityID, fieldID), fv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get field value: %w", err)
 	}
@@ -108,21 +94,6 @@ func (r *fieldValueRepository) ListByEntity(ctx context.Context, entityID uuid.U
 	}
 
 	return pageResult(values, total, p), nil
-}
-
-func (r *fieldValueRepository) Update(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error) {
-	fv.UpdatedAt = time.Now()
-
-	_, err := r.db.Exec(ctx, `
-		UPDATE field_values
-		SET value = $1, updated_at = $2, updated_by = $3
-		WHERE id = $4 AND deleted_at IS NULL
-	`, fv.Value, fv.UpdatedAt, fv.UpdatedBy, fv.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update field value: %w", err)
-	}
-
-	return fv, nil
 }
 
 func (r *fieldValueRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
