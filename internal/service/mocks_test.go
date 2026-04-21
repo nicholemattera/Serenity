@@ -74,7 +74,7 @@ type mockPermissionRepo struct {
 }
 
 func (m *mockPermissionRepo) Create(ctx context.Context, p *models.Permission) (*models.Permission, error) {
-	return nil, nil
+	return p, nil
 }
 func (m *mockPermissionRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Permission, error) {
 	return nil, nil

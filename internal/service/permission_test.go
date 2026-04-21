@@ -127,6 +127,129 @@ func TestPermissionService_CanWriteResource(t *testing.T) {
 	}
 }
 
+func TestPermissionService_CacheHit_Composite(t *testing.T) {
+	ctx := context.Background()
+	roleID := uuid.New()
+	compositeID := uuid.New()
+	composite := &models.Composite{ID: compositeID, DefaultRead: false}
+
+	calls := 0
+	svc := service.NewPermissionService(&mockPermissionRepo{
+		getByRoleAndComposite: func(_ context.Context, _, _ uuid.UUID) (*models.Permission, error) {
+			calls++
+			return &models.Permission{CanRead: true, CanWrite: false}, nil
+		},
+	})
+
+	for i := 0; i < 3; i++ {
+		got, err := svc.CanRead(ctx, composite, &roleID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !got {
+			t.Errorf("expected true")
+		}
+	}
+
+	if calls != 1 {
+		t.Errorf("expected 1 repo call, got %d", calls)
+	}
+}
+
+func TestPermissionService_CacheHit_Resource(t *testing.T) {
+	ctx := context.Background()
+	roleID := uuid.New()
+
+	calls := 0
+	svc := service.NewPermissionService(&mockPermissionRepo{
+		getByRoleAndComposite: func(_ context.Context, _, _ uuid.UUID) (*models.Permission, error) {
+			return nil, pgx.ErrNoRows
+		},
+		getByRoleAndResource: func(_ context.Context, _ uuid.UUID, _ models.ResourceType) (*models.Permission, error) {
+			calls++
+			return &models.Permission{CanRead: true}, nil
+		},
+	})
+
+	for i := 0; i < 3; i++ {
+		got, err := svc.CanReadResource(ctx, models.ResourceTypeComposite, &roleID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !got {
+			t.Errorf("expected true")
+		}
+	}
+
+	if calls != 1 {
+		t.Errorf("expected 1 repo call, got %d", calls)
+	}
+}
+
+func TestPermissionService_CacheNoRowsHit(t *testing.T) {
+	ctx := context.Background()
+	roleID := uuid.New()
+
+	calls := 0
+	svc := service.NewPermissionService(&mockPermissionRepo{
+		getByRoleAndComposite: func(_ context.Context, _, _ uuid.UUID) (*models.Permission, error) {
+			return nil, pgx.ErrNoRows
+		},
+		getByRoleAndResource: func(_ context.Context, _ uuid.UUID, _ models.ResourceType) (*models.Permission, error) {
+			calls++
+			return nil, pgx.ErrNoRows
+		},
+	})
+
+	for i := 0; i < 3; i++ {
+		got, err := svc.CanReadResource(ctx, models.ResourceTypeUser, &roleID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got {
+			t.Errorf("expected false")
+		}
+	}
+
+	if calls != 1 {
+		t.Errorf("expected 1 repo call for no-rows, got %d", calls)
+	}
+}
+
+func TestPermissionService_CacheEvictedOnCreate(t *testing.T) {
+	ctx := context.Background()
+	roleID := uuid.New()
+	compositeID := uuid.New()
+	composite := &models.Composite{ID: compositeID, DefaultRead: false}
+
+	calls := 0
+	svc := service.NewPermissionService(&mockPermissionRepo{
+		getByRoleAndComposite: func(_ context.Context, _, _ uuid.UUID) (*models.Permission, error) {
+			calls++
+			return &models.Permission{CanRead: true}, nil
+		},
+	})
+
+	// Populate cache.
+	if _, err := svc.CanRead(ctx, composite, &roleID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Create evicts the key.
+	if _, err := svc.Create(ctx, &models.Permission{RoleID: roleID, CompositeID: &compositeID, CanRead: true}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Next read must hit repo again.
+	if _, err := svc.CanRead(ctx, composite, &roleID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if calls != 2 {
+		t.Errorf("expected 2 repo calls (cache evicted), got %d", calls)
+	}
+}
+
 func TestPermissionService_CanRead(t *testing.T) {
 	ctx := context.Background()
 	roleID := uuid.New()
