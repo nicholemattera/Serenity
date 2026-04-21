@@ -8,14 +8,16 @@ import (
 )
 
 type Config struct {
-	Port                    string
-	DatabaseURL             string
-	JWTSecret               string
-	BCryptCost              int
-	LoginRateLimit          int
-	LoginRateLimitWindow    time.Duration
-	RegisterRateLimit       int
-	RegisterRateLimitWindow time.Duration
+	Port                          string
+	DatabaseURL                   string
+	JWTSecret                     string
+	BCryptCost                    int
+	LoginRateLimit                int
+	LoginRateLimitWindow          time.Duration
+	RegisterRateLimit             int
+	RegisterRateLimitWindow       time.Duration
+	PasswordUpdateRateLimit       int
+	PasswordUpdateRateLimitWindow time.Duration
 }
 
 func Load() (*Config, error) {
@@ -28,6 +30,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("LOGIN_RATE_LIMIT_WINDOW", "1m")
 	viper.SetDefault("REGISTER_RATE_LIMIT", 3)
 	viper.SetDefault("REGISTER_RATE_LIMIT_WINDOW", "1m")
+	viper.SetDefault("PASSWORD_UPDATE_RATE_LIMIT", 3)
+	viper.SetDefault("PASSWORD_UPDATE_RATE_LIMIT_WINDOW", "1m")
 
 	var missing []string
 	for _, key := range []string{"DATABASE_URL", "JWT_SECRET"} {
@@ -47,15 +51,21 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid REGISTER_RATE_LIMIT_WINDOW: %w", err)
 	}
+	passwordUpdateWindow, err := time.ParseDuration(viper.GetString("PASSWORD_UPDATE_RATE_LIMIT_WINDOW"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid PASSWORD_UPDATE_RATE_LIMIT_WINDOW: %w", err)
+	}
 
 	return &Config{
-		Port:                    viper.GetString("PORT"),
-		DatabaseURL:             viper.GetString("DATABASE_URL"),
-		JWTSecret:               viper.GetString("JWT_SECRET"),
-		BCryptCost:              viper.GetInt("BCRYPT_COST"),
-		LoginRateLimit:          viper.GetInt("LOGIN_RATE_LIMIT"),
-		LoginRateLimitWindow:    loginWindow,
-		RegisterRateLimit:       viper.GetInt("REGISTER_RATE_LIMIT"),
-		RegisterRateLimitWindow: registerWindow,
+		Port:                          viper.GetString("PORT"),
+		DatabaseURL:                   viper.GetString("DATABASE_URL"),
+		JWTSecret:                     viper.GetString("JWT_SECRET"),
+		BCryptCost:                    viper.GetInt("BCRYPT_COST"),
+		LoginRateLimit:                viper.GetInt("LOGIN_RATE_LIMIT"),
+		LoginRateLimitWindow:          loginWindow,
+		RegisterRateLimit:             viper.GetInt("REGISTER_RATE_LIMIT"),
+		RegisterRateLimitWindow:       registerWindow,
+		PasswordUpdateRateLimit:       viper.GetInt("PASSWORD_UPDATE_RATE_LIMIT"),
+		PasswordUpdateRateLimitWindow: passwordUpdateWindow,
 	}, nil
 }

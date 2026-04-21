@@ -181,8 +181,6 @@ func (h *CompositeHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CompositeHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	claims := GetClaims(r)
-
 	ok, err := h.permissionSvc.CanWriteResource(r.Context(), models.ResourceTypeComposite, h.callerRoleID(r))
 	if err != nil {
 		ServiceError(w, err)
@@ -199,6 +197,7 @@ func (h *CompositeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims := GetClaims(r)
 	if err := h.compositeSvc.Delete(r.Context(), id, claims.UserID); err != nil {
 		ServiceError(w, err)
 		return

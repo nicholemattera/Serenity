@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"container/list"
 	"context"
 	"log/slog"
 	"net"
@@ -8,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/nicholemattera/serenity/internal/service"
 )
@@ -57,32 +60,62 @@ func GetClaims(r *http.Request) *service.Claims {
 	return claims
 }
 
-// RateLimit returns a middleware that allows at most rate requests per window per IP.
-func RateLimit(rate int, window time.Duration) func(http.Handler) http.Handler {
-	type entry struct {
-		mu      sync.Mutex
-		count   int
-		resetAt time.Time
+const rateLimitMaxEntries = 10_000
+
+type lruEntry struct {
+	limiter *rate.Limiter
+	elem    *list.Element
+}
+
+type ipRateLimiter struct {
+	mu      sync.Mutex
+	entries map[string]*lruEntry
+	order   *list.List
+	r       rate.Limit
+	burst   int
+}
+
+func newIPRateLimiter(count int, window time.Duration) *ipRateLimiter {
+	return &ipRateLimiter{
+		entries: make(map[string]*lruEntry, rateLimitMaxEntries),
+		order:   list.New(),
+		r:       rate.Limit(float64(count) / window.Seconds()),
+		burst:   count,
 	}
-	var m sync.Map
+}
+
+func (l *ipRateLimiter) get(ip string) *rate.Limiter {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if e, ok := l.entries[ip]; ok {
+		l.order.MoveToFront(e.elem)
+		return e.limiter
+	}
+
+	if len(l.entries) >= rateLimitMaxEntries {
+		back := l.order.Back()
+		if back != nil {
+			l.order.Remove(back)
+			delete(l.entries, back.Value.(string))
+		}
+	}
+
+	lim := rate.NewLimiter(l.r, l.burst)
+	elem := l.order.PushFront(ip)
+	l.entries[ip] = &lruEntry{limiter: lim, elem: elem}
+	return lim
+}
+
+// RateLimit returns a middleware that allows at most count requests per window per IP.
+// Per-IP limiters are kept in an LRU capped at rateLimitMaxEntries to bound memory.
+func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler {
+	limiter := newIPRateLimiter(count, window)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip := realIP(r)
-			v, _ := m.LoadOrStore(ip, &entry{})
-			e := v.(*entry)
-
-			e.mu.Lock()
-			now := time.Now()
-			if now.After(e.resetAt) {
-				e.count = 0
-				e.resetAt = now.Add(window)
-			}
-			e.count++
-			count := e.count
-			e.mu.Unlock()
-
-			if count > rate {
+			if !limiter.get(ip).Allow() {
 				slog.Warn("rate limit exceeded", "ip", ip, "path", r.URL.Path)
 				Error(w, http.StatusTooManyRequests, "too many requests")
 				return

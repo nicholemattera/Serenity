@@ -160,8 +160,6 @@ func (h *FieldValueHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FieldValueHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	claims := GetClaims(r)
-
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		Error(w, http.StatusBadRequest, "invalid id")
@@ -190,6 +188,7 @@ func (h *FieldValueHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims := GetClaims(r)
 	if err := h.fieldValueSvc.Delete(r.Context(), id, claims.UserID); err != nil {
 		ServiceError(w, err)
 		return
