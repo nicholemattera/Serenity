@@ -62,7 +62,7 @@ type createFieldRequest struct {
 	Required     bool             `json:"required"`
 	Position     int              `json:"position"`
 	DefaultValue *string          `json:"default_value"`
-	Metadata     []byte           `json:"metadata"`
+	Metadata     json.RawMessage  `json:"metadata"`
 }
 
 func (h *FieldHandler) Create(w http.ResponseWriter, r *http.Request) {
