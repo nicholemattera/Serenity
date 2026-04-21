@@ -26,7 +26,7 @@ func TestAuth_Login(t *testing.T) {
 		LastName:  "Doe",
 		Email:     "jane@example.com",
 		RoleID:    role.ID,
-	}, "password123")
+	}, "Super-secret_1234")
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestAuth_Login(t *testing.T) {
 	t.Run("valid credentials returns token", func(t *testing.T) {
 		rr := srv.do(http.MethodPost, "/v1/auth/login", map[string]string{
 			"email":    "jane@example.com",
-			"password": "password123",
+			"password": "Super-secret_1234",
 		}, "")
 		assertStatus(t, rr, http.StatusOK)
 
@@ -56,7 +56,7 @@ func TestAuth_Login(t *testing.T) {
 	t.Run("unknown email returns 401", func(t *testing.T) {
 		rr := srv.do(http.MethodPost, "/v1/auth/login", map[string]string{
 			"email":    "nobody@example.com",
-			"password": "password123",
+			"password": "Super-secret_1234",
 		}, "")
 		assertStatus(t, rr, http.StatusUnauthorized)
 	})
@@ -91,7 +91,7 @@ func TestAuth_Register(t *testing.T) {
 			"first_name": "Alice",
 			"last_name":  "Smith",
 			"email":      "alice@example.com",
-			"password":   "secure123",
+			"password":   "Super-secret_1234",
 			"role_id":    openRole.ID,
 		}, "")
 		assertStatus(t, rr, http.StatusCreated)
@@ -108,7 +108,7 @@ func TestAuth_Register(t *testing.T) {
 			"first_name": "Bob",
 			"last_name":  "Smith",
 			"email":      "bob@example.com",
-			"password":   "secure123",
+			"password":   "Super-secret_1234",
 			"role_id":    closedRole.ID,
 		}, "")
 		assertStatus(t, rr, http.StatusForbidden)

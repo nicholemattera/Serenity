@@ -49,12 +49,12 @@ func setupCompositeAccess(t *testing.T, srv *testServer) string {
 		Email:     "editor@example.com",
 		RoleID:    role.ID,
 	}
-	_, err = srv.userSvc.Create(ctx, user, "password123")
+	_, err = srv.userSvc.Create(ctx, user, "Super-secret_1234")
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 
-	token, err := srv.authSvc.Login(ctx, "editor@example.com", "password123")
+	token, err := srv.authSvc.Login(ctx, "editor@example.com", "Super-secret_1234")
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}

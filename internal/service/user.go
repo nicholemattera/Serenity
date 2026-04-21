@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/mail"
+	"regexp"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -32,6 +34,22 @@ func NewUserService(repo repository.UserRepository, bcryptCost int) UserService 
 }
 
 func (s *userService) Create(ctx context.Context, user *models.User, plainPassword string) (*models.User, error) {
+	if len(user.FirstName) == 0 {
+		return nil, errors.New("first name required")
+	}
+
+	if len(user.LastName) == 0 {
+		return nil, errors.New("last name required")
+	}
+
+	if _, err := mail.ParseAddress(user.Email); err != nil {
+		return nil, errors.New("invalid email address")
+	}
+
+	if err := s.ValidatePassword(plainPassword); err != nil {
+		return nil, fmt.Errorf("invalid password: %w", err)
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(plainPassword), s.bcryptCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
@@ -77,6 +95,10 @@ func (s *userService) UpdatePassword(ctx context.Context, id uuid.UUID, plainPas
 		return err
 	}
 
+	if err := s.ValidatePassword(plainPassword); err != nil {
+		return fmt.Errorf("invalid password: %w", err)
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(plainPassword), s.bcryptCost)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
@@ -93,4 +115,22 @@ func (s *userService) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.U
 		return err
 	}
 	return s.repo.Delete(ctx, id, deletedBy)
+}
+
+func (s *userService) ValidatePassword(plainPassword string) error {
+	if len(plainPassword) < 16 {
+		return errors.New("password must be at least 16 characters")
+	} else if len(plainPassword) > 72 {
+		return errors.New("password must be at most 72 characters")
+	} else if symbolMatched, _ := regexp.MatchString("[^a-zA-Z0-9]", plainPassword); !symbolMatched {
+		return errors.New("password must contain a symbol")
+	} else if numberMatched, _ := regexp.MatchString("[0-9]", plainPassword); !numberMatched {
+		return errors.New("password must contain a number")
+	} else if upperMatched, _ := regexp.MatchString("[A-Z]", plainPassword); !upperMatched {
+		return errors.New("password must contain an uppercase letter")
+	} else if lowerMatched, _ := regexp.MatchString("[a-z]", plainPassword); !lowerMatched {
+		return errors.New("password must contain a lowercase letter")
+	}
+
+	return nil
 }

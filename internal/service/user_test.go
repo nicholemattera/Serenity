@@ -14,7 +14,7 @@ import (
 
 func TestUserService_Create_HashesPassword(t *testing.T) {
 	ctx := context.Background()
-	plainPassword := "super-secret"
+	plainPassword := "Super-secret_12345"
 
 	var savedUser *models.User
 	svc := service.NewUserService(&mockUserRepo{
@@ -25,8 +25,10 @@ func TestUserService_Create_HashesPassword(t *testing.T) {
 	}, 4) // low bcrypt cost for tests
 
 	_, err := svc.Create(ctx, &models.User{
-		Email:  "user@example.com",
-		RoleID: uuid.New(),
+		FirstName: "Foo",
+		LastName:  "Bar",
+		Email:     "user@example.com",
+		RoleID:    uuid.New(),
 	}, plainPassword)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
