@@ -161,6 +161,10 @@ func (h *FieldValueHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *FieldValueHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	claims := GetClaims(r)
+	if claims == nil {
+		Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
