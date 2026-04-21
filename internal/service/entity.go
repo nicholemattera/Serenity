@@ -93,26 +93,46 @@ func (s *entityService) GetBySlug(ctx context.Context, compositeID uuid.UUID, sl
 	return s.enrich(ctx, entity)
 }
 
+func (s *entityService) enrichList(ctx context.Context, entities []models.Entity) ([]EntityDetail, error) {
+	details := make([]EntityDetail, len(entities))
+	if len(entities) == 0 {
+		return details, nil
+	}
+	ids := make([]uuid.UUID, len(entities))
+	for i, e := range entities {
+		ids[i] = e.ID
+	}
+	fvsByEntity, err := s.fieldValueSvc.ListByEntities(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load field values: %w", err)
+	}
+	for i, e := range entities {
+		fvs := fvsByEntity[e.ID]
+		if fvs == nil {
+			fvs = []models.FieldValue{}
+		}
+		details[i] = EntityDetail{Entity: e, FieldValues: fvs}
+	}
+	return details, nil
+}
+
 func (s *entityService) ListByComposite(ctx context.Context, compositeID uuid.UUID, p *repository.Pagination, enrich bool) (*repository.Page[EntityDetail], error) {
 	entities, err := s.entityRepo.ListByComposite(ctx, compositeID, p)
 	if err != nil {
 		return nil, err
 	}
 
-	details := make([]EntityDetail, len(entities.Data))
-	for i, e := range entities.Data {
-		if !enrich {
-			details[i] = EntityDetail{Entity: e}
-			continue
-		}
-
-		detail, err := s.enrich(ctx, &e)
+	var details []EntityDetail
+	if enrich {
+		details, err = s.enrichList(ctx, entities.Data)
 		if err != nil {
-			details[i] = EntityDetail{Entity: e}
-			continue
+			return nil, err
 		}
-
-		details[i] = *detail
+	} else {
+		details = make([]EntityDetail, len(entities.Data))
+		for i, e := range entities.Data {
+			details[i] = EntityDetail{Entity: e}
+		}
 	}
 
 	return &repository.Page[EntityDetail]{Data: details, Total: entities.Total, Limit: entities.Limit, Offset: entities.Offset}, nil
@@ -124,20 +144,17 @@ func (s *entityService) ListChildren(ctx context.Context, parentID uuid.UUID, p 
 		return nil, err
 	}
 
-	details := make([]EntityDetail, len(entities.Data))
-	for i, e := range entities.Data {
-		if !enrich {
-			details[i] = EntityDetail{Entity: e}
-			continue
-		}
-
-		detail, err := s.enrich(ctx, &e)
+	var details []EntityDetail
+	if enrich {
+		details, err = s.enrichList(ctx, entities.Data)
 		if err != nil {
-			details[i] = EntityDetail{Entity: e}
-			continue
+			return nil, err
 		}
-
-		details[i] = *detail
+	} else {
+		details = make([]EntityDetail, len(entities.Data))
+		for i, e := range entities.Data {
+			details[i] = EntityDetail{Entity: e}
+		}
 	}
 
 	return &repository.Page[EntityDetail]{Data: details, Total: entities.Total, Limit: entities.Limit, Offset: entities.Offset}, nil

@@ -17,6 +17,7 @@ type FieldService interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Field, error)
 	GetBySlug(ctx context.Context, compositeID uuid.UUID, slug string) (*models.Field, error)
 	ListByComposite(ctx context.Context, compositeID uuid.UUID, p *repository.Pagination) (*repository.Page[models.Field], error)
+	ListByComposites(ctx context.Context, compositeIDs []uuid.UUID) (map[uuid.UUID][]models.Field, error)
 	Update(ctx context.Context, field *models.Field) (*models.Field, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
@@ -61,6 +62,10 @@ func (s *fieldService) GetBySlug(ctx context.Context, compositeID uuid.UUID, slu
 
 func (s *fieldService) ListByComposite(ctx context.Context, compositeID uuid.UUID, p *repository.Pagination) (*repository.Page[models.Field], error) {
 	return s.repo.ListByComposite(ctx, compositeID, p)
+}
+
+func (s *fieldService) ListByComposites(ctx context.Context, compositeIDs []uuid.UUID) (map[uuid.UUID][]models.Field, error) {
+	return s.repo.ListByComposites(ctx, compositeIDs)
 }
 
 func (s *fieldService) Update(ctx context.Context, field *models.Field) (*models.Field, error) {

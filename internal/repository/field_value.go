@@ -15,6 +15,7 @@ type FieldValueRepository interface {
 	Upsert(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.FieldValue, error)
 	ListByEntity(ctx context.Context, entityID uuid.UUID, p *Pagination) (*Page[models.FieldValue], error)
+	ListByEntities(ctx context.Context, entityIDs []uuid.UUID) (map[uuid.UUID][]models.FieldValue, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
 
@@ -94,6 +95,32 @@ func (r *fieldValueRepository) ListByEntity(ctx context.Context, entityID uuid.U
 	}
 
 	return pageResult(values, total, p), nil
+}
+
+func (r *fieldValueRepository) ListByEntities(ctx context.Context, entityIDs []uuid.UUID) (map[uuid.UUID][]models.FieldValue, error) {
+	if len(entityIDs) == 0 {
+		return map[uuid.UUID][]models.FieldValue{}, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT `+fieldValueColumns+`
+		FROM field_values
+		WHERE entity_id = ANY($1) AND deleted_at IS NULL
+		ORDER BY entity_id, created_at ASC
+	`, entityIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list field values by entities: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID][]models.FieldValue)
+	for rows.Next() {
+		var fv models.FieldValue
+		if err := scanFieldValue(rows, &fv); err != nil {
+			return nil, fmt.Errorf("failed to scan field value: %w", err)
+		}
+		result[fv.EntityID] = append(result[fv.EntityID], fv)
+	}
+	return result, nil
 }
 
 func (r *fieldValueRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {

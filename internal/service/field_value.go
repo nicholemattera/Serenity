@@ -15,6 +15,7 @@ type FieldValueService interface {
 	Set(ctx context.Context, fv *models.FieldValue) (*models.FieldValue, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.FieldValue, error)
 	ListByEntity(ctx context.Context, entityID uuid.UUID, p *repository.Pagination) (*repository.Page[models.FieldValue], error)
+	ListByEntities(ctx context.Context, entityIDs []uuid.UUID) (map[uuid.UUID][]models.FieldValue, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
 
@@ -54,6 +55,10 @@ func (s *fieldValueService) GetByID(ctx context.Context, id uuid.UUID) (*models.
 
 func (s *fieldValueService) ListByEntity(ctx context.Context, entityID uuid.UUID, p *repository.Pagination) (*repository.Page[models.FieldValue], error) {
 	return s.repo.ListByEntity(ctx, entityID, p)
+}
+
+func (s *fieldValueService) ListByEntities(ctx context.Context, entityIDs []uuid.UUID) (map[uuid.UUID][]models.FieldValue, error) {
+	return s.repo.ListByEntities(ctx, entityIDs)
 }
 
 func (s *fieldValueService) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {

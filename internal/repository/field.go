@@ -16,6 +16,7 @@ type FieldRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Field, error)
 	GetBySlug(ctx context.Context, compositeID uuid.UUID, slug string) (*models.Field, error)
 	ListByComposite(ctx context.Context, compositeID uuid.UUID, p *Pagination) (*Page[models.Field], error)
+	ListByComposites(ctx context.Context, compositeIDs []uuid.UUID) (map[uuid.UUID][]models.Field, error)
 	Update(ctx context.Context, field *models.Field) (*models.Field, error)
 	Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error
 }
@@ -119,6 +120,32 @@ func (r *fieldRepository) ListByComposite(ctx context.Context, compositeID uuid.
 		page.Offset = p.Offset
 	}
 	return page, nil
+}
+
+func (r *fieldRepository) ListByComposites(ctx context.Context, compositeIDs []uuid.UUID) (map[uuid.UUID][]models.Field, error) {
+	if len(compositeIDs) == 0 {
+		return map[uuid.UUID][]models.Field{}, nil
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT `+fieldColumns+`
+		FROM fields
+		WHERE composite_id = ANY($1) AND deleted_at IS NULL
+		ORDER BY composite_id, position ASC
+	`, compositeIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list fields by composites: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID][]models.Field)
+	for rows.Next() {
+		var f models.Field
+		if err := scanField(rows, &f); err != nil {
+			return nil, fmt.Errorf("failed to scan field: %w", err)
+		}
+		result[f.CompositeID] = append(result[f.CompositeID], f)
+	}
+	return result, nil
 }
 
 func (r *fieldRepository) Update(ctx context.Context, field *models.Field) (*models.Field, error) {

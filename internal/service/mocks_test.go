@@ -119,6 +119,9 @@ func (m *mockFieldService) GetBySlug(ctx context.Context, compositeID uuid.UUID,
 func (m *mockFieldService) ListByComposite(ctx context.Context, compositeID uuid.UUID, p *repository.Pagination) (*repository.Page[models.Field], error) {
 	return nil, nil
 }
+func (m *mockFieldService) ListByComposites(ctx context.Context, compositeIDs []uuid.UUID) (map[uuid.UUID][]models.Field, error) {
+	return map[uuid.UUID][]models.Field{}, nil
+}
 func (m *mockFieldService) Update(ctx context.Context, field *models.Field) (*models.Field, error) {
 	return nil, nil
 }
@@ -140,6 +143,9 @@ func (m *mockFieldValueRepo) GetByID(ctx context.Context, id uuid.UUID) (*models
 }
 func (m *mockFieldValueRepo) ListByEntity(ctx context.Context, entityID uuid.UUID, p *repository.Pagination) (*repository.Page[models.FieldValue], error) {
 	return &repository.Page[models.FieldValue]{Data: []models.FieldValue{}}, nil
+}
+func (m *mockFieldValueRepo) ListByEntities(ctx context.Context, entityIDs []uuid.UUID) (map[uuid.UUID][]models.FieldValue, error) {
+	return map[uuid.UUID][]models.FieldValue{}, nil
 }
 func (m *mockFieldValueRepo) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
 	return nil
