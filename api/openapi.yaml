@@ -711,7 +711,7 @@ paths:
 
   # ── Auth ──────────────────────────────────────────────────────────────────
 
-  /auth/login:
+  /v1/auth/login:
     post:
       operationId: login
       summary: Obtain a JWT token
@@ -743,7 +743,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /auth/register:
+  /v1/auth/register:
     post:
       operationId: register
       summary: Self-register a new user
@@ -787,7 +787,7 @@ paths:
 
   # ── Roles ─────────────────────────────────────────────────────────────────
 
-  /roles:
+  /v1/roles:
     get:
       operationId: listRoles
       summary: List roles
@@ -835,7 +835,7 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
-  /roles/{id}:
+  /v1/roles/{id}:
     parameters:
       - $ref: '#/components/parameters/id'
 
@@ -901,7 +901,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /roles/{roleID}/permissions:
+  /v1/roles/{roleID}/permissions:
     get:
       operationId: listPermissionsByRole
       summary: List permissions for a role
@@ -931,7 +931,7 @@ paths:
 
   # ── Permissions ───────────────────────────────────────────────────────────
 
-  /permissions:
+  /v1/permissions:
     post:
       operationId: createPermission
       summary: Create a permission
@@ -960,7 +960,7 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
-  /permissions/{id}:
+  /v1/permissions/{id}:
     parameters:
       - $ref: '#/components/parameters/id'
 
@@ -1029,7 +1029,7 @@ paths:
 
   # ── Users ─────────────────────────────────────────────────────────────────
 
-  /users:
+  /v1/users:
     get:
       operationId: listUsers
       summary: List users
@@ -1077,7 +1077,7 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
-  /users/{id}:
+  /v1/users/{id}:
     parameters:
       - $ref: '#/components/parameters/id'
 
@@ -1143,7 +1143,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /users/{id}/password:
+  /v1/users/{id}/password:
     parameters:
       - $ref: '#/components/parameters/id'
 
@@ -1179,7 +1179,7 @@ paths:
 
   # ── Composites ────────────────────────────────────────────────────────────
 
-  /composites:
+  /v1/composites:
     get:
       operationId: listComposites
       summary: List composites
@@ -1228,7 +1228,7 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
-  /composites/slug/{slug}:
+  /v1/composites/slug/{slug}:
     get:
       operationId: getCompositeBySlug
       summary: Get a composite by slug
@@ -1256,7 +1256,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /composites/{id}:
+  /v1/composites/{id}:
     parameters:
       - $ref: '#/components/parameters/id'
 
@@ -1328,7 +1328,7 @@ paths:
 
   # ── Fields ────────────────────────────────────────────────────────────────
 
-  /composites/{compositeID}/fields:
+  /v1/composites/{compositeID}/fields:
     get:
       operationId: listFieldsByComposite
       summary: List fields for a composite
@@ -1356,7 +1356,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /fields:
+  /v1/fields:
     post:
       operationId: createField
       summary: Create a field
@@ -1383,7 +1383,7 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
-  /fields/{id}:
+  /v1/fields/{id}:
     parameters:
       - $ref: '#/components/parameters/id'
 
@@ -1451,7 +1451,7 @@ paths:
 
   # ── Entities ──────────────────────────────────────────────────────────────
 
-  /composites/{compositeID}/entities:
+  /v1/composites/{compositeID}/entities:
     get:
       operationId: listEntitiesByComposite
       summary: List root entities for a composite
@@ -1477,7 +1477,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /composites/{compositeID}/entities/slug/{slug}:
+  /v1/composites/{compositeID}/entities/slug/{slug}:
     get:
       operationId: getEntityBySlug
       summary: Get an entity by slug
@@ -1507,7 +1507,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /entities:
+  /v1/entities:
     post:
       operationId: createEntity
       summary: Create an entity
@@ -1532,7 +1532,7 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
-  /entities/{id}:
+  /v1/entities/{id}:
     parameters:
       - $ref: '#/components/parameters/id'
 
@@ -1592,7 +1592,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /entities/{id}/children:
+  /v1/entities/{id}/children:
     get:
       operationId: listEntityChildren
       summary: List direct children of an entity
@@ -1614,7 +1614,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /entities/{id}/move:
+  /v1/entities/{id}/move:
     post:
       operationId: moveEntity
       summary: Move an entity within its tree
@@ -1638,7 +1638,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /entities/{id}/move-root:
+  /v1/entities/{id}/move-root:
     post:
       operationId: moveEntityRoot
       summary: Reorder a root entity within its composite
@@ -1664,7 +1664,7 @@ paths:
 
   # ── Field Values ──────────────────────────────────────────────────────────
 
-  /entities/{entityID}/field-values:
+  /v1/entities/{entityID}/field-values:
     get:
       operationId: listFieldValuesByEntity
       summary: List field values for an entity
@@ -1690,7 +1690,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /field-values:
+  /v1/field-values:
     post:
       operationId: setFieldValue
       summary: Set a field value
@@ -1718,7 +1718,7 @@ paths:
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
 
-  /field-values/{id}:
+  /v1/field-values/{id}:
     parameters:
       - $ref: '#/components/parameters/id'
 
