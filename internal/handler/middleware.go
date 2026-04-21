@@ -3,6 +3,7 @@ package handler
 import (
 	"container/list"
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -108,14 +109,60 @@ func (l *ipRateLimiter) get(ip string) *rate.Limiter {
 	return lim
 }
 
+// TrustedProxies holds a validated set of trusted proxy IPs and CIDRs.
+type TrustedProxies struct {
+	ips   map[string]struct{}
+	cidrs []*net.IPNet
+}
+
+// ParseTrustedProxies parses a slice of IP addresses and CIDR ranges into a TrustedProxies set.
+// Returns an error if any entry is not a valid IP or CIDR.
+func ParseTrustedProxies(addrs []string) (*TrustedProxies, error) {
+	t := &TrustedProxies{ips: make(map[string]struct{})}
+	for _, addr := range addrs {
+		if addr == "" {
+			continue
+		}
+		if strings.ContainsRune(addr, '/') {
+			_, cidr, err := net.ParseCIDR(addr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid trusted proxy CIDR %q: %w", addr, err)
+			}
+			t.cidrs = append(t.cidrs, cidr)
+		} else {
+			if net.ParseIP(addr) == nil {
+				return nil, fmt.Errorf("invalid trusted proxy IP %q", addr)
+			}
+			t.ips[addr] = struct{}{}
+		}
+	}
+	return t, nil
+}
+
+func (t *TrustedProxies) contains(ip string) bool {
+	if _, ok := t.ips[ip]; ok {
+		return true
+	}
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	for _, cidr := range t.cidrs {
+		if cidr.Contains(parsed) {
+			return true
+		}
+	}
+	return false
+}
+
 // RateLimit returns a middleware that allows at most count requests per window per IP.
 // Per-IP limiters are kept in an LRU capped at rateLimitMaxEntries to bound memory.
-func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler {
+func RateLimit(count int, window time.Duration, proxies *TrustedProxies) func(http.Handler) http.Handler {
 	limiter := newIPRateLimiter(count, window)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := realIP(r)
+			ip := realIP(r, proxies)
 			if !limiter.get(ip).Allow() {
 				slog.Warn("rate limit exceeded", "ip", ip, "path", r.URL.Path)
 				Error(w, http.StatusTooManyRequests, "too many requests")
@@ -126,20 +173,23 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 	}
 }
 
-// TODO: Check for TRUSTED_PROXY_IPS before using `X-Real-IP` and `X-Forwarded-For` headers
-func realIP(r *http.Request) string {
-	if ip := r.Header.Get("X-Real-IP"); ip != "" {
-		return ip
-	}
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		if i := strings.IndexByte(fwd, ','); i >= 0 {
-			return strings.TrimSpace(fwd[:i])
-		}
-		return strings.TrimSpace(fwd)
-	}
+func realIP(r *http.Request, proxies *TrustedProxies) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
 	}
+
+	if proxies.contains(host) {
+		if ip := r.Header.Get("X-Real-IP"); ip != "" {
+			return ip
+		}
+		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+			if i := strings.IndexByte(fwd, ','); i >= 0 {
+				return strings.TrimSpace(fwd[:i])
+			}
+			return strings.TrimSpace(fwd)
+		}
+	}
+
 	return host
 }

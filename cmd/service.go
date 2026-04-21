@@ -26,6 +26,11 @@ func newServiceCmd() *cobra.Command {
 				return err
 			}
 
+			trustedProxies, err := handler.ParseTrustedProxies(a.cfg.TrustedProxyIps)
+			if err != nil {
+				return err
+			}
+
 			authHandler := handler.NewAuthHandler(a.authSvc, a.userSvc, a.roleSvc)
 			roleHandler := handler.NewRoleHandler(a.roleSvc, a.permissionSvc)
 			permissionHandler := handler.NewPermissionHandler(a.permissionSvc)
@@ -46,8 +51,8 @@ func newServiceCmd() *cobra.Command {
 				_, _ = w.Write([]byte("ok"))
 			})
 
-			r.With(handler.RateLimit(a.cfg.LoginRateLimit, a.cfg.LoginRateLimitWindow)).Post("/auth/login", authHandler.Login)
-			r.With(handler.RateLimit(a.cfg.RegisterRateLimit, a.cfg.RegisterRateLimitWindow)).Post("/auth/register", authHandler.Register)
+			r.With(handler.RateLimit(a.cfg.LoginRateLimit, a.cfg.LoginRateLimitWindow, trustedProxies)).Post("/auth/login", authHandler.Login)
+			r.With(handler.RateLimit(a.cfg.RegisterRateLimit, a.cfg.RegisterRateLimitWindow, trustedProxies)).Post("/auth/register", authHandler.Register)
 
 			r.Get("/roles", roleHandler.List)
 			r.With(handler.RequireAuth).Post("/roles", roleHandler.Create)
@@ -65,7 +70,7 @@ func newServiceCmd() *cobra.Command {
 			r.Post("/users", userHandler.Create)
 			r.Get("/users/{id}", userHandler.GetByID)
 			r.With(handler.RequireAuth).Put("/users/{id}", userHandler.Update)
-			r.With(handler.RateLimit(a.cfg.PasswordUpdateRateLimit, a.cfg.PasswordUpdateRateLimitWindow)).With(handler.RequireAuth).Put("/users/{id}/password", userHandler.UpdatePassword)
+			r.With(handler.RateLimit(a.cfg.PasswordUpdateRateLimit, a.cfg.PasswordUpdateRateLimitWindow, trustedProxies)).With(handler.RequireAuth).Put("/users/{id}/password", userHandler.UpdatePassword)
 			r.With(handler.RequireAuth).Delete("/users/{id}", userHandler.Delete)
 
 			r.Get("/composites", compositeHandler.List)
