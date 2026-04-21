@@ -35,19 +35,19 @@ func NewUserService(repo repository.UserRepository, bcryptCost int) UserService 
 
 func (s *userService) Create(ctx context.Context, user *models.User, plainPassword string) (*models.User, error) {
 	if len(user.FirstName) == 0 {
-		return nil, errors.New("first name required")
+		return nil, fmt.Errorf("%w: first name required", ErrInvalidInput)
 	}
 
 	if len(user.LastName) == 0 {
-		return nil, errors.New("last name required")
+		return nil, fmt.Errorf("%w: last name required", ErrInvalidInput)
 	}
 
 	if _, err := mail.ParseAddress(user.Email); err != nil {
-		return nil, errors.New("invalid email address")
+		return nil, fmt.Errorf("%w: invalid email address", ErrInvalidInput)
 	}
 
 	if err := s.ValidatePassword(plainPassword); err != nil {
-		return nil, fmt.Errorf("invalid password: %w", err)
+		return nil, fmt.Errorf("%w: invalid password - %w", ErrInvalidInput, err)
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(plainPassword), s.bcryptCost)

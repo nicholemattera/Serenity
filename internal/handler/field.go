@@ -150,7 +150,7 @@ func (h *FieldHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	field, err := h.fieldSvc.GetByID(r.Context(), id)
 	if err != nil {
-		Error(w, http.StatusNotFound, "not found")
+		ServiceError(w, err)
 		return
 	}
 
