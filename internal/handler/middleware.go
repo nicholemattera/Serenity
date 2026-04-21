@@ -35,6 +35,7 @@ func Authenticate(authSvc service.AuthService) func(http.Handler) http.Handler {
 					return
 				}
 			} else if len(header) != 0 {
+				w.Header().Add("WWW-Authenticate", "Bearer")
 				Error(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}
