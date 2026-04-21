@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -53,6 +54,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("missing required environment variables: %v", missing)
 	}
 
+	bCryptCost := viper.GetInt("BCRYPT_COST")
+	if bCryptCost < 10 || bCryptCost > 14 {
+		return nil, errors.New("invalid BCRYPT_COST: Must be between 10 and 14")
+	}
+
 	loginWindow, err := time.ParseDuration(viper.GetString("LOGIN_RATE_LIMIT_WINDOW"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid LOGIN_RATE_LIMIT_WINDOW: %w", err)
@@ -77,7 +83,7 @@ func Load() (*Config, error) {
 		JWTSecret:                     viper.GetString("JWT_SECRET"),
 		JWTIssuer:                     viper.GetString("JWT_ISSUER"),
 		JWTAudience:                   viper.GetString("JWT_AUDIENCE"),
-		BCryptCost:                    viper.GetInt("BCRYPT_COST"),
+		BCryptCost:                    bCryptCost,
 		LoginRateLimit:                viper.GetInt("LOGIN_RATE_LIMIT"),
 		LoginRateLimitWindow:          loginWindow,
 		RegisterRateLimit:             viper.GetInt("REGISTER_RATE_LIMIT"),
