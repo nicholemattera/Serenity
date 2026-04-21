@@ -27,7 +27,13 @@ func Authenticate(authSvc service.AuthService) func(http.Handler) http.Handler {
 				token := strings.TrimPrefix(header, "Bearer ")
 				if claims, err := authSvc.ValidateToken(token); err == nil {
 					r = r.WithContext(context.WithValue(r.Context(), claimsKey, claims))
+				} else {
+					Error(w, http.StatusUnauthorized, "unauthorized")
+					return
 				}
+			} else if len(header) != 0 {
+				Error(w, http.StatusUnauthorized, "unauthorized")
+				return
 			}
 			next.ServeHTTP(w, r)
 		})
