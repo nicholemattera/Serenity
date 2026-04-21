@@ -148,23 +148,26 @@ func (h *FieldHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	field, err := h.fieldSvc.GetByID(r.Context(), id)
+	if err != nil {
+		Error(w, http.StatusNotFound, "not found")
+		return
+	}
+
 	var req createFieldRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		Error(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	field := &models.Field{
-		ID:           id,
-		CompositeID:  req.CompositeID,
-		Name:         req.Name,
-		Slug:         req.Slug,
-		Type:         req.Type,
-		Required:     req.Required,
-		Position:     req.Position,
-		DefaultValue: req.DefaultValue,
-		Metadata:     req.Metadata,
-	}
+	field.Name = req.Name
+	field.Slug = req.Slug
+	field.Type = req.Type
+	field.Required = req.Required
+	field.Position = req.Position
+	field.DefaultValue = req.DefaultValue
+	field.Metadata = req.Metadata
+
 	if claims := GetClaims(r); claims != nil {
 		field.UpdatedBy = &claims.UserID
 	}
