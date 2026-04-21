@@ -125,6 +125,7 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 	}
 }
 
+// TODO: Check for TRUSTED_PROXY_IPS before using `X-Real-IP` and `X-Forwarded-For` headers
 func realIP(r *http.Request) string {
 	if ip := r.Header.Get("X-Real-IP"); ip != "" {
 		return ip

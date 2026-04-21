@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	Port                          string
+	TrustedProxyIps               []string
 	DatabaseURL                   string
 	JWTSecret                     string
 	BCryptCost                    int
@@ -25,6 +26,7 @@ func Load() (*Config, error) {
 	viper.AutomaticEnv()
 
 	viper.SetDefault("PORT", "8080")
+	viper.SetDefault("TRUSTED_PROXY_IPS", "")
 	viper.SetDefault("BCRYPT_COST", 12)
 	viper.SetDefault("LOGIN_RATE_LIMIT", 5)
 	viper.SetDefault("LOGIN_RATE_LIMIT_WINDOW", "1m")
@@ -58,6 +60,7 @@ func Load() (*Config, error) {
 
 	return &Config{
 		Port:                          viper.GetString("PORT"),
+		TrustedProxyIps:               viper.GetStringSlice("TRUSTED_PROXY_IPS"),
 		DatabaseURL:                   viper.GetString("DATABASE_URL"),
 		JWTSecret:                     viper.GetString("JWT_SECRET"),
 		BCryptCost:                    viper.GetInt("BCRYPT_COST"),
