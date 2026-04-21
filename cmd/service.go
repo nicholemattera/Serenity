@@ -46,8 +46,8 @@ func newServiceCmd() *cobra.Command {
 				_, _ = w.Write([]byte("ok"))
 			})
 
-			r.With(handler.RateLimit(5, time.Minute)).Post("/auth/login", authHandler.Login)
-			r.With(handler.RateLimit(3, time.Minute)).Post("/auth/register", authHandler.Register)
+			r.With(handler.RateLimit(a.cfg.LoginRateLimit, a.cfg.LoginRateLimitWindow)).Post("/auth/login", authHandler.Login)
+			r.With(handler.RateLimit(a.cfg.RegisterRateLimit, a.cfg.RegisterRateLimitWindow)).Post("/auth/register", authHandler.Register)
 
 			r.Get("/roles", roleHandler.List)
 			r.Post("/roles", roleHandler.Create)
