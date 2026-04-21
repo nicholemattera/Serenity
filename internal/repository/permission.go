@@ -130,13 +130,15 @@ func (r *permissionRepository) ListByRole(ctx context.Context, roleID uuid.UUID,
 func (r *permissionRepository) Update(ctx context.Context, permission *models.Permission) (*models.Permission, error) {
 	permission.UpdatedAt = time.Now()
 
-	_, err := r.db.Exec(ctx, `
+	result, err := r.db.Exec(ctx, `
 		UPDATE permissions
 		SET can_read = $1, can_write = $2, updated_at = $3, updated_by = $4
 		WHERE id = $5 AND deleted_at IS NULL
 	`, permission.CanRead, permission.CanWrite, permission.UpdatedAt, permission.UpdatedBy, permission.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update permission: %w", err)
+	} else if result.RowsAffected() == 0 {
+		return nil, ErrNoRowsAffected
 	}
 
 	return permission, nil
@@ -144,11 +146,13 @@ func (r *permissionRepository) Update(ctx context.Context, permission *models.Pe
 
 func (r *permissionRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
 	now := time.Now()
-	_, err := r.db.Exec(ctx, `
+	result, err := r.db.Exec(ctx, `
 		UPDATE permissions SET deleted_at = $1, deleted_by = $2 WHERE id = $3 AND deleted_at IS NULL
 	`, now, deletedBy, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete permission: %w", err)
+	} else if result.RowsAffected() == 0 {
+		return ErrNoRowsAffected
 	}
 
 	return nil

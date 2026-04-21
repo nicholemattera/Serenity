@@ -151,7 +151,7 @@ func (r *fieldRepository) ListByComposites(ctx context.Context, compositeIDs []u
 func (r *fieldRepository) Update(ctx context.Context, field *models.Field) (*models.Field, error) {
 	field.UpdatedAt = time.Now()
 
-	_, err := r.db.Exec(ctx, `
+	result, err := r.db.Exec(ctx, `
 		UPDATE fields
 		SET name = $1, slug = $2, type = $3, required = $4, position = $5,
 		    default_value = $6, metadata = $7, updated_at = $8, updated_by = $9
@@ -160,6 +160,8 @@ func (r *fieldRepository) Update(ctx context.Context, field *models.Field) (*mod
 		field.DefaultValue, field.Metadata, field.UpdatedAt, field.UpdatedBy, field.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update field: %w", err)
+	} else if result.RowsAffected() == 0 {
+		return nil, ErrNoRowsAffected
 	}
 
 	return field, nil
@@ -167,11 +169,13 @@ func (r *fieldRepository) Update(ctx context.Context, field *models.Field) (*mod
 
 func (r *fieldRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
 	now := time.Now()
-	_, err := r.db.Exec(ctx, `
+	result, err := r.db.Exec(ctx, `
 		UPDATE fields SET deleted_at = $1, deleted_by = $2 WHERE id = $3 AND deleted_at IS NULL
 	`, now, deletedBy, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete field: %w", err)
+	} else if result.RowsAffected() == 0 {
+		return ErrNoRowsAffected
 	}
 
 	return nil

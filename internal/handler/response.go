@@ -24,6 +24,7 @@ func Error(w http.ResponseWriter, status int, msg string) {
 
 func ServiceError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, repository.ErrNoRowsAffected):
 	case errors.Is(err, service.ErrNotFound):
 		Error(w, http.StatusNotFound, "not found")
 	case errors.Is(err, service.ErrConflict):

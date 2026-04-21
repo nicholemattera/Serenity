@@ -443,13 +443,15 @@ func (r *entityRepository) MoveRoot(ctx context.Context, id uuid.UUID, afterID *
 func (r *entityRepository) Update(ctx context.Context, entity *models.Entity) (*models.Entity, error) {
 	entity.UpdatedAt = time.Now()
 
-	_, err := r.db.Exec(ctx, `
+	result, err := r.db.Exec(ctx, `
 		UPDATE entities
 		SET name = $1, slug = $2, updated_at = $3, updated_by = $4
 		WHERE id = $5 AND deleted_at IS NULL
 	`, entity.Name, entity.Slug, entity.UpdatedAt, entity.UpdatedBy, entity.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update entity: %w", err)
+	} else if result.RowsAffected() == 0 {
+		return nil, ErrNoRowsAffected
 	}
 
 	return entity, nil
@@ -457,11 +459,13 @@ func (r *entityRepository) Update(ctx context.Context, entity *models.Entity) (*
 
 func (r *entityRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
 	now := time.Now()
-	_, err := r.db.Exec(ctx, `
+	result, err := r.db.Exec(ctx, `
 		UPDATE entities SET deleted_at = $1, deleted_by = $2 WHERE id = $3 AND deleted_at IS NULL
 	`, now, deletedBy, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete entity: %w", err)
+	} else if result.RowsAffected() == 0 {
+		return ErrNoRowsAffected
 	}
 
 	return nil

@@ -125,11 +125,13 @@ func (r *fieldValueRepository) ListByEntities(ctx context.Context, entityIDs []u
 
 func (r *fieldValueRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
 	now := time.Now()
-	_, err := r.db.Exec(ctx, `
+	result, err := r.db.Exec(ctx, `
 		UPDATE field_values SET deleted_at = $1, deleted_by = $2 WHERE id = $3 AND deleted_at IS NULL
 	`, now, deletedBy, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete field value: %w", err)
+	} else if result.RowsAffected() == 0 {
+		return ErrNoRowsAffected
 	}
 
 	return nil

@@ -95,13 +95,15 @@ func (r *roleRepository) List(ctx context.Context, p *Pagination) (*Page[models.
 func (r *roleRepository) Update(ctx context.Context, role *models.Role) (*models.Role, error) {
 	role.UpdatedAt = time.Now()
 
-	_, err := r.db.Exec(ctx, `
+	result, err := r.db.Exec(ctx, `
 		UPDATE roles
 		SET name = $1, hierarchy_level = $2, session_timeout = $3, allow_registration = $4, updated_at = $5, updated_by = $6
 		WHERE id = $7 AND deleted_at IS NULL
 	`, role.Name, role.HierarchyLevel, role.SessionTimeout, role.AllowRegistration, role.UpdatedAt, role.UpdatedBy, role.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update role: %w", err)
+	} else if result.RowsAffected() == 0 {
+		return nil, ErrNoRowsAffected
 	}
 
 	return role, nil
@@ -109,11 +111,13 @@ func (r *roleRepository) Update(ctx context.Context, role *models.Role) (*models
 
 func (r *roleRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
 	now := time.Now()
-	_, err := r.db.Exec(ctx, `
+	result, err := r.db.Exec(ctx, `
 		UPDATE roles SET deleted_at = $1, deleted_by = $2 WHERE id = $3 AND deleted_at IS NULL
 	`, now, deletedBy, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete role: %w", err)
+	} else if result.RowsAffected() == 0 {
+		return ErrNoRowsAffected
 	}
 
 	return nil
