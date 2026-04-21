@@ -57,6 +57,8 @@ func TestAuthService_Login(t *testing.T) {
 				},
 			},
 			"test-secret",
+			"serenity",
+			"serenity",
 		)
 	}
 
@@ -109,6 +111,8 @@ func TestAuthService_ValidateToken(t *testing.T) {
 			getByID: func(_ context.Context, _ uuid.UUID) (*models.Role, error) { return role, nil },
 		},
 		"test-secret",
+		"serenity",
+		"serenity",
 	)
 
 	t.Run("valid token returns correct claims", func(t *testing.T) {
@@ -146,6 +150,8 @@ func TestAuthService_ValidateToken(t *testing.T) {
 				getByID: func(_ context.Context, _ uuid.UUID) (*models.Role, error) { return role, nil },
 			},
 			"different-secret",
+			"serenity",
+			"serenity",
 		)
 		token, _ := otherSvc.Login(ctx, user.Email, "password")
 		_, err := svc.ValidateToken(token)

@@ -28,13 +28,17 @@ type authService struct {
 	userRepo repository.UserRepository
 	roleRepo repository.RoleRepository
 	secret   []byte
+	issuer   string
+	audience string
 }
 
-func NewAuthService(userRepo repository.UserRepository, roleRepo repository.RoleRepository, jwtSecret string) AuthService {
+func NewAuthService(userRepo repository.UserRepository, roleRepo repository.RoleRepository, jwtSecret, issuer, audience string) AuthService {
 	return &authService{
 		userRepo: userRepo,
 		roleRepo: roleRepo,
 		secret:   []byte(jwtSecret),
+		issuer:   issuer,
+		audience: audience,
 	}
 }
 
@@ -62,6 +66,8 @@ func (s *authService) issueToken(user *models.User, role *models.Role) (string, 
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   user.ID.String(),
+			Issuer:    s.issuer,
+			Audience:  jwt.ClaimStrings{s.audience},
 			ExpiresAt: jwt.NewNumericDate(expiry),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
@@ -84,7 +90,7 @@ func (s *authService) ValidateToken(tokenStr string) (*Claims, error) {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return s.secret, nil
-	})
+	}, jwt.WithIssuer(s.issuer), jwt.WithAudience(s.audience))
 	if err != nil {
 		return nil, ErrUnauthorized
 	}

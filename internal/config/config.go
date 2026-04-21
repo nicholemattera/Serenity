@@ -12,6 +12,8 @@ type Config struct {
 	TrustedProxyIps               []string
 	DatabaseURL                   string
 	JWTSecret                     string
+	JWTIssuer                     string
+	JWTAudience                   string
 	BCryptCost                    int
 	LoginRateLimit                int
 	LoginRateLimitWindow          time.Duration
@@ -29,6 +31,8 @@ func Load() (*Config, error) {
 
 	viper.SetDefault("PORT", "8080")
 	viper.SetDefault("TRUSTED_PROXY_IPS", "")
+	viper.SetDefault("JWT_ISSUER", "serenity")
+	viper.SetDefault("JWT_AUDIENCE", "serenity")
 	viper.SetDefault("BCRYPT_COST", 12)
 	viper.SetDefault("LOGIN_RATE_LIMIT", 5)
 	viper.SetDefault("LOGIN_RATE_LIMIT_WINDOW", "1m")
@@ -71,6 +75,8 @@ func Load() (*Config, error) {
 		TrustedProxyIps:               viper.GetStringSlice("TRUSTED_PROXY_IPS"),
 		DatabaseURL:                   viper.GetString("DATABASE_URL"),
 		JWTSecret:                     viper.GetString("JWT_SECRET"),
+		JWTIssuer:                     viper.GetString("JWT_ISSUER"),
+		JWTAudience:                   viper.GetString("JWT_AUDIENCE"),
 		BCryptCost:                    viper.GetInt("BCRYPT_COST"),
 		LoginRateLimit:                viper.GetInt("LOGIN_RATE_LIMIT"),
 		LoginRateLimitWindow:          loginWindow,
