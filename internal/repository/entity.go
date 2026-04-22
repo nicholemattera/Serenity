@@ -409,28 +409,50 @@ func (r *entityRepository) MoveRoot(ctx context.Context, id uuid.UUID, afterID *
 		return nil
 	}
 
+	// Step 1: temporarily park the moving node
+	if _, err := tx.Exec(ctx, `
+		UPDATE entities SET root_position = -(root_position) WHERE id = $1
+	`, id); err != nil {
+		return fmt.Errorf("failed to park root node: %w", err)
+	}
+
 	if currentPos > targetPos {
-		// Moving earlier: shift nodes in [targetPos, currentPos-1] up by one
+		// Step 2a: negate range [targetPos, currentPos-1]
 		if _, err := tx.Exec(ctx, `
-			UPDATE entities
-			SET root_position = root_position + 1
+			UPDATE entities SET root_position = -(root_position)
 			WHERE composite_id = $1 AND lft = 1 AND deleted_at IS NULL
-			  AND root_position >= $2 AND root_position < $3
+			AND root_position >= $2 AND root_position < $3
 		`, compositeID, targetPos, currentPos); err != nil {
-			return fmt.Errorf("failed to shift root positions: %w", err)
+			return fmt.Errorf("failed to negate range: %w", err)
+		}
+		// Step 2b: denegate + apply +1 (WHERE targets the now-negative range, excludes parked node)
+		if _, err := tx.Exec(ctx, `
+			UPDATE entities SET root_position = -(root_position) + 1
+			WHERE composite_id = $1 AND lft = 1 AND deleted_at IS NULL
+			AND root_position > $2 AND root_position <= $3
+		`, compositeID, -currentPos, -targetPos); err != nil {
+			return fmt.Errorf("failed to shift range: %w", err)
 		}
 	} else {
-		// Moving later: shift nodes in [currentPos+1, targetPos] down by one
+		// Step 2a: negate range [currentPos+1, targetPos]
 		if _, err := tx.Exec(ctx, `
-			UPDATE entities
-			SET root_position = root_position - 1
+			UPDATE entities SET root_position = -(root_position)
 			WHERE composite_id = $1 AND lft = 1 AND deleted_at IS NULL
-			  AND root_position > $2 AND root_position <= $3
+			AND root_position > $2 AND root_position <= $3
 		`, compositeID, currentPos, targetPos); err != nil {
-			return fmt.Errorf("failed to shift root positions: %w", err)
+			return fmt.Errorf("failed to negate range: %w", err)
+		}
+		// Step 2b: denegate + apply -1
+		if _, err := tx.Exec(ctx, `
+			UPDATE entities SET root_position = -(root_position) - 1
+			WHERE composite_id = $1 AND lft = 1 AND deleted_at IS NULL
+			AND root_position >= $2 AND root_position < $3
+		`, compositeID, -targetPos, -currentPos); err != nil {
+			return fmt.Errorf("failed to shift range: %w", err)
 		}
 	}
 
+	// Step 3: place the node at its final position
 	if _, err := tx.Exec(ctx, `
 		UPDATE entities SET root_position = $1 WHERE id = $2
 	`, targetPos, id); err != nil {
