@@ -44,6 +44,7 @@ func newServiceCmd() *cobra.Command {
 			r.Use(middleware.Logger)
 			r.Use(middleware.Recoverer)
 			r.Use(middleware.RequestID)
+			r.Use(handler.MaxBodySize(a.cfg.MaxBodyBytes))
 
 			r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
@@ -105,8 +106,12 @@ func newServiceCmd() *cobra.Command {
 			})
 
 			srv := &http.Server{
-				Addr:    ":" + a.cfg.Port,
-				Handler: r,
+				Addr:              ":" + a.cfg.Port,
+				Handler:           r,
+				ReadHeaderTimeout: a.cfg.ReadHeaderTimeout,
+				ReadTimeout:       a.cfg.ReadTimeout,
+				WriteTimeout:      a.cfg.WriteTimeout,
+				IdleTimeout:       a.cfg.IdleTimeout,
 			}
 
 			quit := make(chan os.Signal, 1)

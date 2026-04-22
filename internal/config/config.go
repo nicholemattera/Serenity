@@ -16,6 +16,11 @@ type Config struct {
 	JWTIssuer                     string
 	JWTAudience                   string
 	BCryptCost                    int
+	ReadHeaderTimeout             time.Duration
+	ReadTimeout                   time.Duration
+	WriteTimeout                  time.Duration
+	IdleTimeout                   time.Duration
+	MaxBodyBytes                  int64
 	LoginRateLimit                int
 	LoginRateLimitWindow          time.Duration
 	RegisterRateLimit             int
@@ -35,6 +40,11 @@ func Load() (*Config, error) {
 	viper.SetDefault("JWT_ISSUER", "serenity")
 	viper.SetDefault("JWT_AUDIENCE", "serenity")
 	viper.SetDefault("BCRYPT_COST", 12)
+	viper.SetDefault("READ_HEADER_TIMEOUT", "5s")
+	viper.SetDefault("READ_TIMEOUT", "30s")
+	viper.SetDefault("WRITE_TIMEOUT", "30s")
+	viper.SetDefault("IDLE_TIMEOUT", "120s")
+	viper.SetDefault("MAX_BODY_BYTES", 1048576)
 	viper.SetDefault("LOGIN_RATE_LIMIT", 5)
 	viper.SetDefault("LOGIN_RATE_LIMIT_WINDOW", "1m")
 	viper.SetDefault("REGISTER_RATE_LIMIT", 3)
@@ -57,6 +67,23 @@ func Load() (*Config, error) {
 	bCryptCost := viper.GetInt("BCRYPT_COST")
 	if bCryptCost < 10 || bCryptCost > 14 {
 		return nil, errors.New("invalid BCRYPT_COST: Must be between 10 and 14")
+	}
+
+	readHeaderTimeout, err := time.ParseDuration(viper.GetString("READ_HEADER_TIMEOUT"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid READ_HEADER_TIMEOUT: %w", err)
+	}
+	readTimeout, err := time.ParseDuration(viper.GetString("READ_TIMEOUT"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid READ_TIMEOUT: %w", err)
+	}
+	writeTimeout, err := time.ParseDuration(viper.GetString("WRITE_TIMEOUT"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid WRITE_TIMEOUT: %w", err)
+	}
+	idleTimeout, err := time.ParseDuration(viper.GetString("IDLE_TIMEOUT"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid IDLE_TIMEOUT: %w", err)
 	}
 
 	loginWindow, err := time.ParseDuration(viper.GetString("LOGIN_RATE_LIMIT_WINDOW"))
@@ -84,6 +111,11 @@ func Load() (*Config, error) {
 		JWTIssuer:                     viper.GetString("JWT_ISSUER"),
 		JWTAudience:                   viper.GetString("JWT_AUDIENCE"),
 		BCryptCost:                    bCryptCost,
+		ReadHeaderTimeout:             readHeaderTimeout,
+		ReadTimeout:                   readTimeout,
+		WriteTimeout:                  writeTimeout,
+		IdleTimeout:                   idleTimeout,
+		MaxBodyBytes:                  viper.GetInt64("MAX_BODY_BYTES"),
 		LoginRateLimit:                viper.GetInt("LOGIN_RATE_LIMIT"),
 		LoginRateLimitWindow:          loginWindow,
 		RegisterRateLimit:             viper.GetInt("REGISTER_RATE_LIMIT"),
