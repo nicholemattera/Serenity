@@ -12,11 +12,12 @@ import (
 
 type UserHandler struct {
 	userSvc       service.UserService
+	roleSvc       service.RoleService
 	permissionSvc service.PermissionService
 }
 
-func NewUserHandler(userSvc service.UserService, permissionSvc service.PermissionService) *UserHandler {
-	return &UserHandler{userSvc: userSvc, permissionSvc: permissionSvc}
+func NewUserHandler(userSvc service.UserService, roleSvc service.RoleService, permissionSvc service.PermissionService) *UserHandler {
+	return &UserHandler{userSvc: userSvc, roleSvc: roleSvc, permissionSvc: permissionSvc}
 }
 
 func (h *UserHandler) callerRoleID(r *http.Request) *uuid.UUID {
@@ -71,13 +72,31 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims := GetClaims(r)
+	if claims != nil {
+		callerLevel, err := callerHierarchyLevel(r.Context(), claims, h.roleSvc)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		targetRole, err := h.roleSvc.GetByID(r.Context(), req.RoleID)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		if targetRole.HierarchyLevel <= callerLevel {
+			Error(w, http.StatusForbidden, "forbidden")
+			return
+		}
+	}
+
 	user := &models.User{
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
 		Email:     req.Email,
 		RoleID:    req.RoleID,
 	}
-	if claims := GetClaims(r); claims != nil {
+	if claims != nil {
 		user.CreatedBy = &claims.UserID
 	}
 
@@ -152,12 +171,41 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims := GetClaims(r)
+	if claims != nil {
+		callerLevel, err := callerHierarchyLevel(r.Context(), claims, h.roleSvc)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		currentRole, err := h.roleSvc.GetByID(r.Context(), user.RoleID)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		if currentRole.HierarchyLevel <= callerLevel {
+			Error(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if req.RoleID != user.RoleID {
+			newRole, err := h.roleSvc.GetByID(r.Context(), req.RoleID)
+			if err != nil {
+				ServiceError(w, err)
+				return
+			}
+			if newRole.HierarchyLevel <= callerLevel {
+				Error(w, http.StatusForbidden, "forbidden")
+				return
+			}
+		}
+	}
+
 	user.FirstName = req.FirstName
 	user.LastName = req.LastName
 	user.Email = req.Email
 	user.RoleID = req.RoleID
 
-	if claims := GetClaims(r); claims != nil {
+	if claims != nil {
 		user.UpdatedBy = &claims.UserID
 	}
 
@@ -199,6 +247,26 @@ func (h *UserHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 			Error(w, http.StatusForbidden, "forbidden")
 			return
 		}
+
+		callerLevel, err := callerHierarchyLevel(r.Context(), claims, h.roleSvc)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		targetUser, err := h.userSvc.GetByID(r.Context(), id)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		targetRole, err := h.roleSvc.GetByID(r.Context(), targetUser.RoleID)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		if targetRole.HierarchyLevel <= callerLevel {
+			Error(w, http.StatusForbidden, "forbidden")
+			return
+		}
 	}
 
 	var req updatePasswordRequest
@@ -230,6 +298,28 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		Error(w, http.StatusBadRequest, "invalid id")
 		return
+	}
+
+	targetUser, err := h.userSvc.GetByID(r.Context(), id)
+	if err != nil {
+		ServiceError(w, err)
+		return
+	}
+	if claims != nil {
+		callerLevel, err := callerHierarchyLevel(r.Context(), claims, h.roleSvc)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		targetRole, err := h.roleSvc.GetByID(r.Context(), targetUser.RoleID)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		if targetRole.HierarchyLevel <= callerLevel {
+			Error(w, http.StatusForbidden, "forbidden")
+			return
+		}
 	}
 
 	if err := h.userSvc.Delete(r.Context(), id, claims.UserID); err != nil {

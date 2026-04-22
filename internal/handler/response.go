@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -76,4 +77,15 @@ func ParsePagination(r *http.Request) repository.Pagination {
 
 func ParseEnrich(r *http.Request) bool {
 	return r.URL.Query().Get("enrich") == "true"
+}
+
+func callerHierarchyLevel(ctx context.Context, claims *service.Claims, roleSvc service.RoleService) (int, error) {
+	if claims == nil {
+		return 0, nil
+	}
+	role, err := roleSvc.GetByID(ctx, claims.RoleID)
+	if err != nil {
+		return 0, err
+	}
+	return role.HierarchyLevel, nil
 }

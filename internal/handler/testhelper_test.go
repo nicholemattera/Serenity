@@ -99,7 +99,7 @@ func newTestServer(t *testing.T) *testServer {
 	authHandler := handler.NewAuthHandler(authSvc, userSvc, roleSvc)
 	roleHandler := handler.NewRoleHandler(roleSvc, permissionSvc)
 	permissionHandler := handler.NewPermissionHandler(permissionSvc)
-	userHandler := handler.NewUserHandler(userSvc, permissionSvc)
+	userHandler := handler.NewUserHandler(userSvc, roleSvc, permissionSvc)
 	compositeHandler := handler.NewCompositeHandler(compositeSvc, permissionSvc)
 	fieldHandler := handler.NewFieldHandler(fieldSvc, permissionSvc)
 	entityHandler := handler.NewEntityHandler(entitySvc, fieldSvc, fieldValueSvc, compositeSvc, permissionSvc)

@@ -67,7 +67,17 @@ func (h *RoleHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if !DecodeBody(w, r, &role) {
 		return
 	}
+
 	if claims != nil {
+		callerLevel, err := callerHierarchyLevel(r.Context(), claims, h.roleSvc)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		if role.HierarchyLevel <= callerLevel {
+			Error(w, http.StatusForbidden, "forbidden")
+			return
+		}
 		role.CreatedBy = &claims.UserID
 	}
 
@@ -140,7 +150,22 @@ func (h *RoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role.ID = id
+
 	if claims != nil {
+		callerLevel, err := callerHierarchyLevel(r.Context(), claims, h.roleSvc)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		currentRole, err := h.roleSvc.GetByID(r.Context(), id)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		if currentRole.HierarchyLevel <= callerLevel || role.HierarchyLevel <= callerLevel {
+			Error(w, http.StatusForbidden, "forbidden")
+			return
+		}
 		role.UpdatedBy = &claims.UserID
 	}
 
@@ -174,6 +199,23 @@ func (h *RoleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		Error(w, http.StatusBadRequest, "invalid id")
 		return
+	}
+
+	if claims != nil {
+		callerLevel, err := callerHierarchyLevel(r.Context(), claims, h.roleSvc)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		targetRole, err := h.roleSvc.GetByID(r.Context(), id)
+		if err != nil {
+			ServiceError(w, err)
+			return
+		}
+		if targetRole.HierarchyLevel <= callerLevel {
+			Error(w, http.StatusForbidden, "forbidden")
+			return
+		}
 	}
 
 	if err := h.roleSvc.Delete(r.Context(), id, claims.UserID); err != nil {
