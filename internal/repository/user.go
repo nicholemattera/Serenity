@@ -91,7 +91,7 @@ func (r *userRepository) List(ctx context.Context, p *Pagination) (*Page[models.
 		return nil, fmt.Errorf("failed to count users: %w", err)
 	}
 
-	query, args := paginateQuery(`SELECT id, first_name, last_name, email, password_hash, role_id, created_at, updated_at, deleted_at, created_by, updated_by, deleted_by FROM users WHERE deleted_at IS NULL ORDER BY created_at ASC`, nil, p)
+	query, args := paginateQuery(`SELECT id, first_name, last_name, email, role_id, created_at, updated_at, deleted_at, created_by, updated_by, deleted_by FROM users WHERE deleted_at IS NULL ORDER BY created_at ASC`, nil, p)
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list users: %w", err)
@@ -102,7 +102,7 @@ func (r *userRepository) List(ctx context.Context, p *Pagination) (*Page[models.
 	for rows.Next() {
 		var user models.User
 		if err := rows.Scan(
-			&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.PasswordHash, &user.RoleID,
+			&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.RoleID,
 			&user.CreatedAt, &user.UpdatedAt, &user.DeletedAt,
 			&user.CreatedBy, &user.UpdatedBy, &user.DeletedBy,
 		); err != nil {

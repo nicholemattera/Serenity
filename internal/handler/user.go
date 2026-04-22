@@ -112,6 +112,7 @@ func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		ServiceError(w, err)
 		return
 	}
+	user.PasswordHash = ""
 
 	JSON(w, http.StatusOK, user)
 }
@@ -165,6 +166,7 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ServiceError(w, err)
 		return
 	}
+	result.PasswordHash = ""
 
 	JSON(w, http.StatusOK, result)
 }
