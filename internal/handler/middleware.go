@@ -7,10 +7,12 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/time/rate"
 
 	"github.com/nicholemattera/serenity/internal/service"
@@ -18,7 +20,64 @@ import (
 
 type contextKey string
 
-const claimsKey contextKey = "claims"
+const (
+	claimsKey contextKey = "claims"
+	loggerKey contextKey = "logger"
+)
+
+// SlogLogger logs each HTTP request via slog. Must run after RequestID middleware.
+// Logs method, path, status, and duration. Never logs headers or query strings
+// to avoid accidentally capturing tokens or secrets.
+func SlogLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ww := chimiddleware.NewWrapResponseWriter(w, r.ProtoMajor)
+
+		reqID := chimiddleware.GetReqID(r.Context())
+		logger := slog.Default().With("request_id", reqID)
+		r = r.WithContext(context.WithValue(r.Context(), loggerKey, logger))
+
+		next.ServeHTTP(ww, r)
+
+		logger.Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", ww.Status(),
+			"duration_ms", time.Since(start).Milliseconds(),
+		)
+	})
+}
+
+// LogFrom returns the request-scoped slog.Logger (with request_id attached),
+// falling back to slog.Default() when called outside of SlogLogger.
+func LogFrom(ctx context.Context) *slog.Logger {
+	if l, ok := ctx.Value(loggerKey).(*slog.Logger); ok {
+		return l
+	}
+	return slog.Default()
+}
+
+// Recoverer recovers from panics, logs the panic and stack trace via slog,
+// and writes 500. Re-panics http.ErrAbortHandler to let the server abort cleanly.
+func Recoverer(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rvr := recover(); rvr != nil {
+				if rvr == http.ErrAbortHandler {
+					panic(rvr)
+				}
+				LogFrom(r.Context()).Error("panic recovered",
+					"panic", fmt.Sprintf("%v", rvr),
+					"stack", string(debug.Stack()),
+				)
+				if r.Header.Get("Connection") != "Upgrade" {
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
 
 func MaxBodySize(limit int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -173,7 +232,7 @@ func RateLimit(count int, window time.Duration, proxies *TrustedProxies) func(ht
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip := realIP(r, proxies)
 			if !limiter.get(ip).Allow() {
-				slog.Warn("rate limit exceeded", "ip", ip, "path", r.URL.Path)
+				LogFrom(r.Context()).Warn("rate limit exceeded", "ip", ip, "path", r.URL.Path)
 				Error(w, http.StatusTooManyRequests, "too many requests")
 				return
 			}

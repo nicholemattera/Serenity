@@ -41,9 +41,9 @@ func newServiceCmd() *cobra.Command {
 			fieldValueHandler := handler.NewFieldValueHandler(a.fieldValueSvc, a.entitySvc, a.compositeSvc, a.permissionSvc)
 
 			r := chi.NewRouter()
-			r.Use(middleware.Logger)
-			r.Use(middleware.Recoverer)
 			r.Use(middleware.RequestID)
+			r.Use(handler.SlogLogger)
+			r.Use(handler.Recoverer)
 			r.Use(handler.MaxBodySize(a.cfg.MaxBodyBytes))
 
 			r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
