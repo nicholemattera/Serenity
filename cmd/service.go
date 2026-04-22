@@ -135,6 +135,7 @@ func newServiceCmd() *cobra.Command {
 				return err
 			}
 
+			a.db.Close()
 			slog.Info("server stopped")
 			return nil
 		},
