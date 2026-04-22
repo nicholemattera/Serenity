@@ -341,3 +341,122 @@ func ids(entities []models.Entity) []uuid.UUID {
 	}
 	return out
 }
+
+func TestEntityRepository_Delete(t *testing.T) {
+	db := newTestDB(t)
+	ctx := context.Background()
+	repo := repository.NewEntityRepository(db)
+	compositeRepo := repository.NewCompositeRepository(db)
+	actor := uuid.New()
+
+	t.Run("deleting a leaf soft-deletes only that node and closes NSM gap", func(t *testing.T) {
+		composite := seedComposite(t, compositeRepo)
+		root, _ := repo.Create(ctx, newEntity(composite.ID, "root"), nil, nil)
+		child, _ := repo.Create(ctx, newEntity(composite.ID, "child"), &root.ID, nil)
+
+		if err := repo.Delete(ctx, child.ID, actor); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Root should still be visible and have lft=1 rgt=2 (gap closed)
+		updated, err := repo.GetByID(ctx, root.ID)
+		if err != nil {
+			t.Fatalf("parent should still exist: %v", err)
+		}
+		if updated.Left != 1 || updated.Right != 2 {
+			t.Errorf("expected root lft=1 rgt=2 after leaf delete, got lft=%d rgt=%d", updated.Left, updated.Right)
+		}
+
+		if _, err := repo.GetByID(ctx, child.ID); err == nil {
+			t.Error("deleted child should not be returned by GetByID")
+		}
+	})
+
+	t.Run("deleting a parent cascades soft-delete to all descendants", func(t *testing.T) {
+		composite := seedComposite(t, compositeRepo)
+		root, _ := repo.Create(ctx, newEntity(composite.ID, "root"), nil, nil)
+		child, _ := repo.Create(ctx, newEntity(composite.ID, "child"), &root.ID, nil)
+		grandchild, _ := repo.Create(ctx, newEntity(composite.ID, "grandchild"), &child.ID, nil)
+
+		if err := repo.Delete(ctx, root.ID, actor); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		for _, id := range []uuid.UUID{root.ID, child.ID, grandchild.ID} {
+			if _, err := repo.GetByID(ctx, id); err == nil {
+				t.Errorf("entity %v should have been soft-deleted", id)
+			}
+		}
+	})
+
+	t.Run("deleting a root node compacts root_position for siblings", func(t *testing.T) {
+		composite := seedComposite(t, compositeRepo)
+		r1, _ := repo.Create(ctx, newEntity(composite.ID, "r1"), nil, nil)
+		r2, _ := repo.Create(ctx, newEntity(composite.ID, "r2"), nil, nil)
+		r3, _ := repo.Create(ctx, newEntity(composite.ID, "r3"), nil, nil)
+
+		if err := repo.Delete(ctx, r1.ID, actor); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// r2 and r3 should now have root_position 1 and 2
+		updated2, _ := repo.GetByID(ctx, r2.ID)
+		updated3, _ := repo.GetByID(ctx, r3.ID)
+		if updated2.RootPosition == nil || *updated2.RootPosition != 1 {
+			t.Errorf("expected r2 root_position=1, got %v", updated2.RootPosition)
+		}
+		if updated3.RootPosition == nil || *updated3.RootPosition != 2 {
+			t.Errorf("expected r3 root_position=2, got %v", updated3.RootPosition)
+		}
+
+		// Remaining roots in composite should be exactly r2, r3
+		page, _ := repo.ListByComposite(ctx, composite.ID, &repository.Pagination{Limit: 10, Offset: 0})
+		roots := rootsOnly(page.Data)
+		if len(roots) != 2 || roots[0].ID != r2.ID || roots[1].ID != r3.ID {
+			t.Errorf("expected [r2, r3] as remaining roots, got %v", ids(roots))
+		}
+	})
+
+	t.Run("deleting middle root compacts positions correctly", func(t *testing.T) {
+		composite := seedComposite(t, compositeRepo)
+		r1, _ := repo.Create(ctx, newEntity(composite.ID, "r1"), nil, nil)
+		r2, _ := repo.Create(ctx, newEntity(composite.ID, "r2"), nil, nil)
+		r3, _ := repo.Create(ctx, newEntity(composite.ID, "r3"), nil, nil)
+
+		if err := repo.Delete(ctx, r2.ID, actor); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		updated1, _ := repo.GetByID(ctx, r1.ID)
+		updated3, _ := repo.GetByID(ctx, r3.ID)
+		if updated1.RootPosition == nil || *updated1.RootPosition != 1 {
+			t.Errorf("r1 root_position should stay 1, got %v", updated1.RootPosition)
+		}
+		if updated3.RootPosition == nil || *updated3.RootPosition != 2 {
+			t.Errorf("r3 root_position should become 2, got %v", updated3.RootPosition)
+		}
+	})
+
+	t.Run("deleting a subtree closes gap for siblings in same tree", func(t *testing.T) {
+		composite := seedComposite(t, compositeRepo)
+		root, _ := repo.Create(ctx, newEntity(composite.ID, "root"), nil, nil)
+		left, _ := repo.Create(ctx, newEntity(composite.ID, "left"), &root.ID, nil)
+		_, _ = repo.Create(ctx, newEntity(composite.ID, "left-child"), &left.ID, nil)
+		right, _ := repo.Create(ctx, newEntity(composite.ID, "right"), &root.ID, nil)
+
+		// Tree before delete: root[1,8] left[2,5] left-child[3,4] right[6,7]
+		if err := repo.Delete(ctx, left.ID, actor); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// After delete: root[1,4] right[2,3]
+		updatedRoot, _ := repo.GetByID(ctx, root.ID)
+		updatedRight, _ := repo.GetByID(ctx, right.ID)
+		if updatedRoot.Left != 1 || updatedRoot.Right != 4 {
+			t.Errorf("expected root lft=1 rgt=4, got lft=%d rgt=%d", updatedRoot.Left, updatedRoot.Right)
+		}
+		if updatedRight.Left != 2 || updatedRight.Right != 3 {
+			t.Errorf("expected right lft=2 rgt=3, got lft=%d rgt=%d", updatedRight.Left, updatedRight.Right)
+		}
+	})
+}

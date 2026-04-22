@@ -480,15 +480,57 @@ func (r *entityRepository) Update(ctx context.Context, entity *models.Entity) (*
 }
 
 func (r *entityRepository) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.UUID) error {
-	now := time.Now()
-	result, err := r.db.Exec(ctx, `
-		UPDATE entities SET deleted_at = $1, deleted_by = $2 WHERE id = $3 AND deleted_at IS NULL
-	`, now, deletedBy, id)
+	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to delete entity: %w", err)
-	} else if result.RowsAffected() == 0 {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var compositeID, treeID uuid.UUID
+	var nodeLft, nodeRgt int
+	var rootPosition *int
+	if err := tx.QueryRow(ctx, `
+		SELECT composite_id, tree_id, lft, rgt, root_position FROM entities WHERE id = $1 AND deleted_at IS NULL
+	`, id).Scan(&compositeID, &treeID, &nodeLft, &nodeRgt, &rootPosition); err != nil {
+		return fmt.Errorf("failed to find entity: %w", err)
+	}
+
+	now := time.Now()
+	subtreeWidth := nodeRgt - nodeLft + 1
+
+	// Soft-delete the node and all its descendants
+	result, err := tx.Exec(ctx, `
+		UPDATE entities SET deleted_at = $1, deleted_by = $2
+		WHERE tree_id = $3 AND lft >= $4 AND rgt <= $5 AND deleted_at IS NULL
+	`, now, deletedBy, treeID, nodeLft, nodeRgt)
+	if err != nil {
+		return fmt.Errorf("failed to delete entity and descendants: %w", err)
+	}
+	if result.RowsAffected() == 0 {
 		return ErrNoRowsAffected
 	}
 
-	return nil
+	// Close the NSM gap left by the removed subtree
+	if _, err := tx.Exec(ctx, `
+		UPDATE entities SET rgt = rgt - $1 WHERE tree_id = $2 AND rgt > $3 AND deleted_at IS NULL
+	`, subtreeWidth, treeID, nodeRgt); err != nil {
+		return fmt.Errorf("failed to close gap (rgt): %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE entities SET lft = lft - $1 WHERE tree_id = $2 AND lft > $3 AND deleted_at IS NULL
+	`, subtreeWidth, treeID, nodeRgt); err != nil {
+		return fmt.Errorf("failed to close gap (lft): %w", err)
+	}
+
+	// If this was a root node, compact root_position for its siblings
+	if rootPosition != nil {
+		if _, err := tx.Exec(ctx, `
+			UPDATE entities SET root_position = root_position - 1
+			WHERE composite_id = $1 AND lft = 1 AND deleted_at IS NULL AND root_position > $2
+		`, compositeID, *rootPosition); err != nil {
+			return fmt.Errorf("failed to compact root positions: %w", err)
+		}
+	}
+
+	return tx.Commit(ctx)
 }
