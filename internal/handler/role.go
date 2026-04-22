@@ -68,6 +68,11 @@ func (h *RoleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if role.HierarchyLevel <= 0 {
+		Error(w, http.StatusBadRequest, "invalid hierarchy level")
+		return
+	}
+
 	if claims != nil {
 		callerLevel, err := callerHierarchyLevel(r.Context(), claims, h.roleSvc)
 		if err != nil {
@@ -150,6 +155,11 @@ func (h *RoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role.ID = id
+
+	if role.HierarchyLevel <= 0 {
+		Error(w, http.StatusBadRequest, "invalid hierarchy level")
+		return
+	}
 
 	if claims != nil {
 		callerLevel, err := callerHierarchyLevel(r.Context(), claims, h.roleSvc)

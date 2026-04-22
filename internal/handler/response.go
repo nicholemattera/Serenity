@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -81,11 +82,11 @@ func ParseEnrich(r *http.Request) bool {
 
 func callerHierarchyLevel(ctx context.Context, claims *service.Claims, roleSvc service.RoleService) (int, error) {
 	if claims == nil {
-		return 0, nil
+		return math.MaxInt, nil
 	}
 	role, err := roleSvc.GetByID(ctx, claims.RoleID)
 	if err != nil {
-		return 0, err
+		return math.MaxInt, err
 	}
 	return role.HierarchyLevel, nil
 }

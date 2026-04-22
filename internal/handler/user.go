@@ -172,7 +172,7 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := GetClaims(r)
-	if claims != nil {
+	if claims != nil && claims.UserID != id {
 		callerLevel, err := callerHierarchyLevel(r.Context(), claims, h.roleSvc)
 		if err != nil {
 			ServiceError(w, err)
