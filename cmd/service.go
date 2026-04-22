@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -9,10 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/spf13/cobra"
 
+	serenityapi "github.com/nicholemattera/serenity/api"
 	"github.com/nicholemattera/serenity/internal/handler"
 )
 
@@ -24,6 +27,16 @@ func newServiceCmd() *cobra.Command {
 			a, err := initApp()
 			if err != nil {
 				return err
+			}
+
+			loader := openapi3.NewLoader()
+			doc, err := loader.LoadFromData(serenityapi.Spec)
+			if err != nil {
+				return fmt.Errorf("load openapi spec: %w", err)
+			}
+			doc.Servers = openapi3.Servers{{URL: "/"}}
+			if err := doc.Validate(cmd.Context()); err != nil {
+				return fmt.Errorf("validate openapi spec: %w", err)
 			}
 
 			trustedProxies, err := handler.ParseTrustedProxies(a.cfg.TrustedProxyIps)
@@ -45,6 +58,7 @@ func newServiceCmd() *cobra.Command {
 			r.Use(handler.SlogLogger)
 			r.Use(handler.Recoverer)
 			r.Use(handler.MaxBodySize(a.cfg.MaxBodyBytes))
+			r.Use(handler.OpenAPIValidation(doc))
 
 			r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)

@@ -23,7 +23,7 @@ info:
 
     Access to **built-in resources** (composites, fields, users, roles, permissions) requires an
     explicit permission row with `resource_type` set. Unauthenticated requests are always denied for
-    built-in resources.
+    built-in resources, returning `403 Forbidden` (not `401`) when no token is present.
 
     ## Pagination
 
@@ -336,6 +336,14 @@ components:
           type: string
           format: uuid
 
+    UserPasswordUpdateInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          format: password
+
     # ── Field ─────────────────────────────────────────────────────────────────
     FieldType:
       type: string
@@ -405,6 +413,27 @@ components:
         composite_id:
           type: string
           format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        type:
+          $ref: '#/components/schemas/FieldType'
+        required:
+          type: boolean
+          default: false
+        position:
+          type: integer
+        default_value:
+          type: string
+          nullable: true
+        metadata:
+          nullable: true
+
+    FieldUpdateInput:
+      type: object
+      required: [name, slug, type, position]
+      properties:
         name:
           type: string
         slug:
@@ -705,6 +734,20 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
 
+    TooManyRequests:
+      description: Rate limit exceeded — back off and retry.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    RequestEntityTooLarge:
+      description: Request body exceeds the configured size limit.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
 # ─── Paths ───────────────────────────────────────────────────────────────────
 
 paths:
@@ -740,8 +783,14 @@ paths:
                 properties:
                   token:
                     type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /v1/auth/register:
     post:
@@ -778,12 +827,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   # ── Roles ─────────────────────────────────────────────────────────────────
 
@@ -828,12 +883,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
   /v1/roles/{id}:
     parameters:
@@ -852,6 +911,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -878,12 +939,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
     delete:
       operationId: deleteRole
@@ -894,6 +959,8 @@ paths:
       responses:
         '204':
           $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -924,6 +991,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PermissionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -953,12 +1022,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Permission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
   /v1/permissions/{id}:
     parameters:
@@ -977,6 +1050,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Permission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1004,12 +1079,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Permission'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
     delete:
       operationId: deletePermission
@@ -1020,6 +1099,8 @@ paths:
       responses:
         '204':
           $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1070,12 +1151,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
   /v1/users/{id}:
     parameters:
@@ -1094,6 +1179,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1120,12 +1207,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
     delete:
       operationId: deleteUser
@@ -1136,6 +1227,8 @@ paths:
       responses:
         '204':
           $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1161,21 +1254,22 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [password]
-              properties:
-                password:
-                  type: string
-                  format: password
+              $ref: '#/components/schemas/UserPasswordUpdateInput'
       responses:
         '204':
           $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   # ── Composites ────────────────────────────────────────────────────────────
 
@@ -1221,12 +1315,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Composite'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
   /v1/composites/slug/{slug}:
     get:
@@ -1275,6 +1373,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CompositeDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1303,12 +1403,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CompositeDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
     delete:
       operationId: deleteComposite
@@ -1319,6 +1423,8 @@ paths:
       responses:
         '204':
           $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1351,6 +1457,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FieldPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1376,12 +1484,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Field'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
   /v1/fields/{id}:
     parameters:
@@ -1400,6 +1512,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Field'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1410,6 +1524,7 @@ paths:
     put:
       operationId: updateField
       summary: Update a field
+      description: The field's `composite_id` cannot be changed after creation.
       tags: [Fields]
       security:
         - bearerAuth: []
@@ -1418,7 +1533,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/FieldInput'
+              $ref: '#/components/schemas/FieldUpdateInput'
       responses:
         '200':
           description: Field updated.
@@ -1426,12 +1541,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Field'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
     delete:
       operationId: deleteField
@@ -1442,6 +1561,8 @@ paths:
       responses:
         '204':
           $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1474,6 +1595,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EntityPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
 
@@ -1502,6 +1625,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EntityDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -1531,6 +1656,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
   /v1/entities/{id}:
     parameters:
@@ -1549,6 +1676,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EntityDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -1579,6 +1708,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
     delete:
       operationId: deleteEntity
@@ -1587,6 +1718,8 @@ paths:
       responses:
         '204':
           $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -1609,6 +1742,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EntityPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -1633,10 +1768,14 @@ paths:
       responses:
         '204':
           $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
   /v1/entities/{id}/move-root:
     post:
@@ -1657,10 +1796,14 @@ paths:
       responses:
         '204':
           $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
 
   # ── Field Values ──────────────────────────────────────────────────────────
 
@@ -1685,6 +1828,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FieldValuePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -1711,10 +1856,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FieldValue'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
 
@@ -1733,6 +1882,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FieldValue'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
@@ -1745,6 +1896,8 @@ paths:
       responses:
         '204':
           $ref: '#/components/responses/NoContent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':

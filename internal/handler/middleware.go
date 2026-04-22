@@ -3,6 +3,7 @@ package handler
 import (
 	"container/list"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -12,6 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/getkin/kin-openapi/openapi3filter"
+	"github.com/getkin/kin-openapi/routers/gorillamux"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/time/rate"
 
@@ -236,6 +240,47 @@ func RateLimit(count int, window time.Duration, proxies *TrustedProxies) func(ht
 				Error(w, http.StatusTooManyRequests, "too many requests")
 				return
 			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// OpenAPIValidation validates incoming requests against the OpenAPI spec.
+// Requests for routes not found in the spec pass through; chi will 404 them.
+// Returns 400 for schema violations with a descriptive message.
+func OpenAPIValidation(doc *openapi3.T) func(http.Handler) http.Handler {
+	router, err := gorillamux.NewRouter(doc)
+	if err != nil {
+		panic(fmt.Sprintf("openapi router init: %v", err))
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			route, pathParams, err := router.FindRoute(r)
+			if err != nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			input := &openapi3filter.RequestValidationInput{
+				Request:    r,
+				PathParams: pathParams,
+				Route:      route,
+				Options: &openapi3filter.Options{
+					AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
+				},
+			}
+
+			if err := openapi3filter.ValidateRequest(r.Context(), input); err != nil {
+				var reqErr *openapi3filter.RequestError
+				if errors.As(err, &reqErr) {
+					Error(w, http.StatusBadRequest, reqErr.Error())
+					return
+				}
+				Error(w, http.StatusBadRequest, "invalid request")
+				return
+			}
+
 			next.ServeHTTP(w, r)
 		})
 	}
