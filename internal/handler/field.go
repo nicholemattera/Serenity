@@ -77,8 +77,7 @@ func (h *FieldHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req createFieldRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+	if !DecodeBody(w, r, &req) {
 		return
 	}
 
@@ -155,8 +154,7 @@ func (h *FieldHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req createFieldRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+	if !DecodeBody(w, r, &req) {
 		return
 	}
 

@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -83,8 +82,7 @@ func (h *PermissionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var permission models.Permission
-	if err := json.NewDecoder(r.Body).Decode(&permission); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+	if !DecodeBody(w, r, &permission) {
 		return
 	}
 	if claims != nil {
@@ -133,8 +131,7 @@ func (h *PermissionHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var permission models.Permission
-	if err := json.NewDecoder(r.Body).Decode(&permission); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+	if !DecodeBody(w, r, &permission) {
 		return
 	}
 	permission.ID = id

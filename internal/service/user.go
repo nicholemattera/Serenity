@@ -112,7 +112,7 @@ func (s *userService) UpdatePassword(ctx context.Context, id uuid.UUID, plainPas
 	}
 
 	if err := s.validatePassword(plainPassword); err != nil {
-		return fmt.Errorf("%w: invalid password: %w", ErrInvalidInput, err)
+		return fmt.Errorf("%w: invalid password - %w", ErrInvalidInput, err)
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(plainPassword), s.bcryptCost)

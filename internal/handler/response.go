@@ -10,6 +10,22 @@ import (
 	"github.com/nicholemattera/serenity/internal/service"
 )
 
+// DecodeBody decodes the JSON request body into v.
+// Returns true on success; on failure it writes the appropriate error response
+// (413 for oversized bodies, 400 for malformed JSON) and returns false.
+func DecodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			Error(w, http.StatusRequestEntityTooLarge, "request body too large")
+			return false
+		}
+		Error(w, http.StatusBadRequest, "invalid request body")
+		return false
+	}
+	return true
+}
+
 func JSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

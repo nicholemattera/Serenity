@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -65,8 +64,7 @@ func (h *RoleHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var role models.Role
-	if err := json.NewDecoder(r.Body).Decode(&role); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+	if !DecodeBody(w, r, &role) {
 		return
 	}
 	if claims != nil {
@@ -138,8 +136,7 @@ func (h *RoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var role models.Role
-	if err := json.NewDecoder(r.Body).Decode(&role); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+	if !DecodeBody(w, r, &role) {
 		return
 	}
 	role.ID = id

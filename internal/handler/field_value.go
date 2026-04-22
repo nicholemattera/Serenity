@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -87,8 +86,7 @@ type setFieldValueRequest struct {
 
 func (h *FieldValueHandler) Set(w http.ResponseWriter, r *http.Request) {
 	var req setFieldValueRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		Error(w, http.StatusBadRequest, "invalid request body")
+	if !DecodeBody(w, r, &req) {
 		return
 	}
 
