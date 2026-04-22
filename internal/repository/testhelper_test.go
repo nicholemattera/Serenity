@@ -4,12 +4,15 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/nicholemattera/serenity/internal/database"
+	"github.com/nicholemattera/serenity/internal/models"
+	"github.com/nicholemattera/serenity/internal/repository"
 )
 
 func newTestDB(t *testing.T) *pgxpool.Pool {
@@ -50,4 +53,31 @@ func newTestDB(t *testing.T) *pgxpool.Pool {
 	}
 
 	return pool
+}
+
+func seedField(t *testing.T, repo repository.FieldRepository, compositeID uuid.UUID) *models.Field {
+	t.Helper()
+	f, err := repo.Create(context.Background(), &models.Field{
+		CompositeID: compositeID,
+		Name:        "Test Field",
+		Slug:        uuid.NewString(),
+		Type:        models.FieldTypeShortText,
+	})
+	if err != nil {
+		t.Fatalf("seedField: %v", err)
+	}
+	return f
+}
+
+func seedEntity(t *testing.T, repo repository.EntityRepository, compositeID uuid.UUID) *models.Entity {
+	t.Helper()
+	e, err := repo.Create(context.Background(), &models.Entity{
+		CompositeID: compositeID,
+		Name:        uuid.NewString(),
+		Slug:        uuid.NewString(),
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("seedEntity: %v", err)
+	}
+	return e
 }
