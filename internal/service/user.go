@@ -25,12 +25,28 @@ type UserService interface {
 }
 
 type userService struct {
-	repo       repository.UserRepository
-	bcryptCost int
+	repo            repository.UserRepository
+	bcryptCost      int
+	symbolRegexp    *regexp.Regexp
+	numberRegexp    *regexp.Regexp
+	uppercaseRegexp *regexp.Regexp
+	lowercaseRegexp *regexp.Regexp
 }
 
 func NewUserService(repo repository.UserRepository, bcryptCost int) UserService {
-	return &userService{repo: repo, bcryptCost: bcryptCost}
+	symbolRegexp, _ := regexp.Compile("[^a-zA-Z0-9]")
+	numberRegexp, _ := regexp.Compile("[0-9]")
+	uppercaseRegexp, _ := regexp.Compile("[A-Z]")
+	lowercaseRegexp, _ := regexp.Compile("[a-z]")
+
+	return &userService{
+		repo:            repo,
+		bcryptCost:      bcryptCost,
+		symbolRegexp:    symbolRegexp,
+		numberRegexp:    numberRegexp,
+		uppercaseRegexp: uppercaseRegexp,
+		lowercaseRegexp: lowercaseRegexp,
+	}
 }
 
 func (s *userService) Create(ctx context.Context, user *models.User, plainPassword string) (*models.User, error) {
@@ -42,11 +58,11 @@ func (s *userService) Create(ctx context.Context, user *models.User, plainPasswo
 		return nil, fmt.Errorf("%w: last name required", ErrInvalidInput)
 	}
 
-	if _, err := mail.ParseAddress(user.Email); err != nil {
+	if addr, err := mail.ParseAddress(user.Email); err != nil || addr.Address != user.Email {
 		return nil, fmt.Errorf("%w: invalid email address", ErrInvalidInput)
 	}
 
-	if err := s.ValidatePassword(plainPassword); err != nil {
+	if err := s.validatePassword(plainPassword); err != nil {
 		return nil, fmt.Errorf("%w: invalid password - %w", ErrInvalidInput, err)
 	}
 
@@ -95,7 +111,7 @@ func (s *userService) UpdatePassword(ctx context.Context, id uuid.UUID, plainPas
 		return err
 	}
 
-	if err := s.ValidatePassword(plainPassword); err != nil {
+	if err := s.validatePassword(plainPassword); err != nil {
 		return fmt.Errorf("invalid password: %w", err)
 	}
 
@@ -117,18 +133,18 @@ func (s *userService) Delete(ctx context.Context, id uuid.UUID, deletedBy uuid.U
 	return s.repo.Delete(ctx, id, deletedBy)
 }
 
-func (s *userService) ValidatePassword(plainPassword string) error {
+func (s *userService) validatePassword(plainPassword string) error {
 	if len(plainPassword) < 16 {
 		return errors.New("password must be at least 16 characters")
 	} else if len(plainPassword) > 72 {
 		return errors.New("password must be at most 72 characters")
-	} else if symbolMatched, _ := regexp.MatchString("[^a-zA-Z0-9]", plainPassword); !symbolMatched {
+	} else if !s.symbolRegexp.MatchString(plainPassword) {
 		return errors.New("password must contain a symbol")
-	} else if numberMatched, _ := regexp.MatchString("[0-9]", plainPassword); !numberMatched {
+	} else if !s.numberRegexp.MatchString(plainPassword) {
 		return errors.New("password must contain a number")
-	} else if upperMatched, _ := regexp.MatchString("[A-Z]", plainPassword); !upperMatched {
+	} else if !s.uppercaseRegexp.MatchString(plainPassword) {
 		return errors.New("password must contain an uppercase letter")
-	} else if lowerMatched, _ := regexp.MatchString("[a-z]", plainPassword); !lowerMatched {
+	} else if !s.lowercaseRegexp.MatchString(plainPassword) {
 		return errors.New("password must contain a lowercase letter")
 	}
 
