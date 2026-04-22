@@ -140,18 +140,22 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	user, err := h.userSvc.GetByID(r.Context(), id)
+	if err != nil {
+		ServiceError(w, err)
+		return
+	}
+
 	var req updateUserRequest
 	if !DecodeBody(w, r, &req) {
 		return
 	}
 
-	user := &models.User{
-		ID:        id,
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-		Email:     req.Email,
-		RoleID:    req.RoleID,
-	}
+	user.FirstName = req.FirstName
+	user.LastName = req.LastName
+	user.Email = req.Email
+	user.RoleID = req.RoleID
+
 	if claims := GetClaims(r); claims != nil {
 		user.UpdatedBy = &claims.UserID
 	}

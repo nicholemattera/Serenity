@@ -119,9 +119,9 @@ func (r *userRepository) Update(ctx context.Context, user *models.User) (*models
 
 	result, err := r.db.Exec(ctx, `
 		UPDATE users
-		SET first_name = $1, last_name = $2, email = $3, role_id = $4, updated_at = $5, updated_by = $6
-		WHERE id = $7 AND deleted_at IS NULL
-	`, user.FirstName, user.LastName, user.Email, user.RoleID, user.UpdatedAt, user.UpdatedBy, user.ID)
+		SET first_name = $1, last_name = $2, email = $3, password_hash = $4, role_id = $5, updated_at = $6, updated_by = $7
+		WHERE id = $8 AND deleted_at IS NULL
+	`, user.FirstName, user.LastName, user.Email, user.PasswordHash, user.RoleID, user.UpdatedAt, user.UpdatedBy, user.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	} else if result.RowsAffected() == 0 {
