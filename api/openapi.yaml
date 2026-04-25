@@ -25,6 +25,9 @@ info:
     explicit permission row with `resource_type` set. Unauthenticated requests are always denied for
     built-in resources, returning `403 Forbidden` (not `401`) when no token is present.
 
+    The `entity` and `field_value` resource types act as overrides: a role granted either type takes
+    precedence over composite-level permissions for all entity or field value operations respectively.
+
     ## Pagination
 
     All list endpoints accept `limit` (1–100, default 20) and `offset` (default 0) query parameters
@@ -203,7 +206,7 @@ components:
     # ── Permission ───────────────────────────────────────────────────────────
     ResourceType:
       type: string
-      enum: [composite, field, user, role]
+      enum: [composite, field, user, role, entity, field_value, permission]
       description: Built-in resource type targeted by this permission.
 
     Permission:

@@ -58,7 +58,7 @@ func (h *FieldValueHandler) ListByEntity(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	ok, err := h.permissionSvc.CanRead(r.Context(), composite, h.callerRoleID(r))
+	ok, err := h.permissionSvc.CanReadFieldValue(r.Context(), composite, h.callerRoleID(r))
 	if err != nil {
 		ServiceError(w, err)
 		return
@@ -96,7 +96,7 @@ func (h *FieldValueHandler) Set(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err := h.permissionSvc.CanWrite(r.Context(), composite, h.callerRoleID(r))
+	ok, err := h.permissionSvc.CanWriteFieldValue(r.Context(), composite, h.callerRoleID(r))
 	if err != nil {
 		ServiceError(w, err)
 		return
@@ -144,7 +144,7 @@ func (h *FieldValueHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err := h.permissionSvc.CanRead(r.Context(), composite, h.callerRoleID(r))
+	ok, err := h.permissionSvc.CanReadFieldValue(r.Context(), composite, h.callerRoleID(r))
 	if err != nil {
 		ServiceError(w, err)
 		return
@@ -176,7 +176,7 @@ func (h *FieldValueHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err := h.permissionSvc.CanWrite(r.Context(), composite, h.callerRoleID(r))
+	ok, err := h.permissionSvc.CanWriteFieldValue(r.Context(), composite, h.callerRoleID(r))
 	if err != nil {
 		ServiceError(w, err)
 		return

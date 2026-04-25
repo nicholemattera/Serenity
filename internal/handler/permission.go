@@ -24,7 +24,7 @@ func (h *PermissionHandler) requireReadAccess(w http.ResponseWriter, r *http.Req
 	if claims != nil {
 		roleID = &claims.RoleID
 	}
-	ok, err := h.permissionSvc.CanReadResource(r.Context(), models.ResourceTypeRole, roleID)
+	ok, err := h.permissionSvc.CanReadResource(r.Context(), models.ResourceTypePermission, roleID)
 	if err != nil {
 		ServiceError(w, err)
 		return nil, false
@@ -42,7 +42,7 @@ func (h *PermissionHandler) requireWriteAccess(w http.ResponseWriter, r *http.Re
 	if claims != nil {
 		roleID = &claims.RoleID
 	}
-	ok, err := h.permissionSvc.CanWriteResource(r.Context(), models.ResourceTypeRole, roleID)
+	ok, err := h.permissionSvc.CanWriteResource(r.Context(), models.ResourceTypePermission, roleID)
 	if err != nil {
 		ServiceError(w, err)
 		return nil, false

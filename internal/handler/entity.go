@@ -37,7 +37,7 @@ func (h *EntityHandler) requireCompositeRead(w http.ResponseWriter, r *http.Requ
 		return nil, false
 	}
 	composite := &detail.Composite
-	ok, err := h.permissionSvc.CanRead(r.Context(), composite, h.callerRoleID(r))
+	ok, err := h.permissionSvc.CanReadEntity(r.Context(), composite, h.callerRoleID(r))
 	if err != nil {
 		ServiceError(w, err)
 		return nil, false
@@ -56,7 +56,7 @@ func (h *EntityHandler) requireCompositeWrite(w http.ResponseWriter, r *http.Req
 		return nil, false
 	}
 	composite := &detail.Composite
-	ok, err := h.permissionSvc.CanWrite(r.Context(), composite, h.callerRoleID(r))
+	ok, err := h.permissionSvc.CanWriteEntity(r.Context(), composite, h.callerRoleID(r))
 	if err != nil {
 		ServiceError(w, err)
 		return nil, false

@@ -71,7 +71,7 @@ func newServiceCmd() *cobra.Command {
 				v1Router.With(handler.RateLimit(a.cfg.LoginRateLimit, a.cfg.LoginRateLimitWindow, trustedProxies)).Post("/auth/login", authHandler.Login)
 				v1Router.With(handler.RateLimit(a.cfg.RegisterRateLimit, a.cfg.RegisterRateLimitWindow, trustedProxies)).Post("/auth/register", authHandler.Register)
 
-				v1Router.Get("/roles", roleHandler.List)
+				v1Router.With(handler.RequireAuth).Get("/roles", roleHandler.List)
 				v1Router.With(handler.RequireAuth).Post("/roles", roleHandler.Create)
 				v1Router.Get("/roles/{id}", roleHandler.GetByID)
 				v1Router.With(handler.RequireAuth).Put("/roles/{id}", roleHandler.Update)
@@ -79,7 +79,7 @@ func newServiceCmd() *cobra.Command {
 				v1Router.Get("/roles/{roleID}/permissions", permissionHandler.ListByRole)
 
 				v1Router.With(handler.RequireAuth).Post("/permissions", permissionHandler.Create)
-				v1Router.Get("/permissions/{id}", permissionHandler.GetByID)
+				v1Router.With(handler.RequireAuth).Get("/permissions/{id}", permissionHandler.GetByID)
 				v1Router.With(handler.RequireAuth).Put("/permissions/{id}", permissionHandler.Update)
 				v1Router.With(handler.RequireAuth).Delete("/permissions/{id}", permissionHandler.Delete)
 

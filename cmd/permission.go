@@ -61,7 +61,7 @@ func newPermissionCreateCmd() *cobra.Command {
 		Use:   "create",
 		Short: "Create a permission",
 		Long: `Create a permission for a role. Provide either --composite-id (for a user-defined
-composite) or --resource-type (for a built-in resource: composite, field, user, role).`,
+composite) or --resource-type (for a built-in resource: composite, field, user, role, entity, field_value, permission).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if compositeID == "" && resourceType == "" {
 				return fmt.Errorf("one of --composite-id or --resource-type is required")
@@ -107,7 +107,7 @@ composite) or --resource-type (for a built-in resource: composite, field, user, 
 
 	cmd.Flags().StringVar(&roleID, "role-id", "", "Role UUID (required)")
 	cmd.Flags().StringVar(&compositeID, "composite-id", "", "Composite UUID (mutually exclusive with --resource-type)")
-	cmd.Flags().StringVar(&resourceType, "resource-type", "", "Built-in resource type: composite, field, user, role (mutually exclusive with --composite-id)")
+	cmd.Flags().StringVar(&resourceType, "resource-type", "", "Built-in resource type: composite, field, user, role, entity, field_value, permission (mutually exclusive with --composite-id)")
 	cmd.Flags().BoolVar(&canRead, "can-read", false, "Grant read access")
 	cmd.Flags().BoolVar(&canWrite, "can-write", false, "Grant write access")
 	_ = cmd.MarkFlagRequired("role-id")

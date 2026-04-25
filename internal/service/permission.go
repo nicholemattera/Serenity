@@ -27,6 +27,14 @@ type PermissionService interface {
 	CanReadResource(ctx context.Context, resourceType models.ResourceType, roleID *uuid.UUID) (bool, error)
 	// CanWriteResource returns true if the given role (nil = unauthenticated) may write the built-in resource type.
 	CanWriteResource(ctx context.Context, resourceType models.ResourceType, roleID *uuid.UUID) (bool, error)
+	// CanReadEntity checks the entity resource-type permission first; falls through to composite-level if absent.
+	CanReadEntity(ctx context.Context, composite *models.Composite, roleID *uuid.UUID) (bool, error)
+	// CanWriteEntity checks the entity resource-type permission first; falls through to composite-level if absent.
+	CanWriteEntity(ctx context.Context, composite *models.Composite, roleID *uuid.UUID) (bool, error)
+	// CanReadFieldValue checks the field_value resource-type permission first; falls through to composite-level if absent.
+	CanReadFieldValue(ctx context.Context, composite *models.Composite, roleID *uuid.UUID) (bool, error)
+	// CanWriteFieldValue checks the field_value resource-type permission first; falls through to composite-level if absent.
+	CanWriteFieldValue(ctx context.Context, composite *models.Composite, roleID *uuid.UUID) (bool, error)
 }
 
 type permissionCacheEntry struct {
@@ -251,4 +259,60 @@ func (s *permissionService) CanWriteResource(ctx context.Context, resourceType m
 		return false, err
 	}
 	return p.CanWrite, nil
+}
+
+func (s *permissionService) CanReadEntity(ctx context.Context, composite *models.Composite, roleID *uuid.UUID) (bool, error) {
+	if roleID == nil {
+		return composite.DefaultRead, nil
+	}
+	p, err := s.cachedByRoleAndResource(ctx, *roleID, models.ResourceTypeEntity)
+	if err == nil {
+		return p.CanRead, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
+	return s.CanRead(ctx, composite, roleID)
+}
+
+func (s *permissionService) CanWriteEntity(ctx context.Context, composite *models.Composite, roleID *uuid.UUID) (bool, error) {
+	if roleID == nil {
+		return composite.DefaultWrite, nil
+	}
+	p, err := s.cachedByRoleAndResource(ctx, *roleID, models.ResourceTypeEntity)
+	if err == nil {
+		return p.CanWrite, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
+	return s.CanWrite(ctx, composite, roleID)
+}
+
+func (s *permissionService) CanReadFieldValue(ctx context.Context, composite *models.Composite, roleID *uuid.UUID) (bool, error) {
+	if roleID == nil {
+		return composite.DefaultRead, nil
+	}
+	p, err := s.cachedByRoleAndResource(ctx, *roleID, models.ResourceTypeFieldValue)
+	if err == nil {
+		return p.CanRead, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
+	return s.CanRead(ctx, composite, roleID)
+}
+
+func (s *permissionService) CanWriteFieldValue(ctx context.Context, composite *models.Composite, roleID *uuid.UUID) (bool, error) {
+	if roleID == nil {
+		return composite.DefaultWrite, nil
+	}
+	p, err := s.cachedByRoleAndResource(ctx, *roleID, models.ResourceTypeFieldValue)
+	if err == nil {
+		return p.CanWrite, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return false, err
+	}
+	return s.CanWrite(ctx, composite, roleID)
 }
