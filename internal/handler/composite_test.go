@@ -197,16 +197,16 @@ func TestComposite_PermissionEnforcement(t *testing.T) {
 		rr := srv.do(http.MethodPost, "/v1/composites", map[string]any{
 			"name": "x", "slug": "x",
 		}, "")
-		assertStatus(t, rr, http.StatusForbidden)
+		assertStatus(t, rr, http.StatusUnauthorized)
 	})
 
 	t.Run("unauthenticated cannot list composites", func(t *testing.T) {
 		rr := srv.do(http.MethodGet, "/v1/composites", nil, "")
-		assertStatus(t, rr, http.StatusForbidden)
+		assertStatus(t, rr, http.StatusUnauthorized)
 	})
 
 	t.Run("unauthenticated cannot get composite by id", func(t *testing.T) {
 		rr := srv.do(http.MethodGet, "/v1/composites/"+compositeID, nil, "")
-		assertStatus(t, rr, http.StatusForbidden)
+		assertStatus(t, rr, http.StatusUnauthorized)
 	})
 }
